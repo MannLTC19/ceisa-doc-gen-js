@@ -3,6 +3,8 @@ import {
   Bot, Download, FileText, Layout, 
   Settings, Shield, Users, Zap, Loader2 
 } from 'lucide-react';
+ // ← must be here
+import './index.css';
 
 import { TabKajian } from './components/TabKajian.jsx';
 import { TabPenelitian } from './components/TabPenelitian.jsx';
@@ -377,9 +379,9 @@ function App() {
 
   // ─── RENDER ──────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+    <div className="w-screen bg-slate-50 flex flex-col font-sans text-slate-900">
       <header className="bg-slate-900 text-white p-4 sticky top-0 z-50 shadow-xl">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="w-full flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-600 rounded-lg">
               <Bot className="w-6 h-6" />
@@ -414,7 +416,7 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
+      <main className="flex-1 w-full p-4 md:p-6 flex flex-col gap-6">
 
         {/* Upload error banner */}
         {uploadError && (
