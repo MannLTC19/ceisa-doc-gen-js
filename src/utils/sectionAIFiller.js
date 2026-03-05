@@ -6,7 +6,12 @@
  * - Smart prompt generation per section
  * - Budget enforcement ($1 cap per document)
  * - Token tracking and rollback on failure
+ * 
+ * NOW INTEGRATED WITH: Dual AI System (Opus + Gemini with cascade fallback)
+ * See: dualAIFiller.js for collaborative AI analysis
  */
+
+import { DualAICoordinator } from './dualAIFiller';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  SECTION DEFINITIONS & TOKEN COSTS
@@ -534,4 +539,5 @@ export const BatchSectionGenerator = {
   },
 };
 
-export default { TokenBudgetTracker, SectionAIGenerator, BatchSectionGenerator, SECTION_DEFINITIONS };
+export { DualAICoordinator };
+export default { TokenBudgetTracker, SectionAIGenerator, BatchSectionGenerator, SECTION_DEFINITIONS, DualAICoordinator };

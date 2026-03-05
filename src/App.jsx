@@ -7,15 +7,17 @@ import {
 import { ConfigProvider, theme as antdTheme, Modal, message } from 'antd';
 
 import LandingPageV2 from './components/LandingPageV2.jsx';
-import AISimulation from './components/AISimulation.jsx';
 import TokenUsageDisplay from './components/TokenUsageDisplay.jsx';
 import TokenBudgetMonitor from './components/TokenBudgetMonitor.jsx';
+import AIModelMonitor from './components/AIModelMonitor.jsx';
 import SectionWithAIFill from './components/SectionWithAIFill.jsx';
 import { TabKajian }     from './components/TabKajian.jsx';
 import { TabPenelitian } from './components/TabPenelitian.jsx';
 import { TabBRD }        from './components/TabBRD.jsx';
 import { TabFSD }        from './components/TabFSD.jsx';
 import { TabCharter }    from './components/TabCharter.jsx';
+
+import { DualAICoordinator } from './utils/dualAIFiller';
 
 import {
   ROLE_RATES_2023,
@@ -233,7 +235,6 @@ export default function App() {
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
   const [project,      setProject]      = useState(makeInitialProject);
   const [showLanding,  setShowLanding]  = useState(true);
-  const [aiSimModal,   setAiSimModal]   = useState(false);
 
   // ─── Section AI Filling State ────────────────────────────────────────────
   const [currentDocumentText, setCurrentDocumentText] = useState('');
@@ -246,6 +247,8 @@ export default function App() {
   const [loadingSections, setLoadingSections] = useState(new Set());
   const [filledSections, setFilledSections] = useState(new Set());
   const [showTokenMonitor, setShowTokenMonitor] = useState(false);
+  const [dualAI, setDualAI] = useState(new DualAICoordinator());
+  const [dualAIUsage, setDualAIUsage] = useState(null);
 
   const isLoading = uploadStatus === STATUS.EXTRACTING || uploadStatus === STATUS.ANALYZING;
 
@@ -321,6 +324,12 @@ export default function App() {
     setTokenBudget({ total: 0, remaining: 1.0, budgetCap: 1.0, breakdown: {} });
     setLoadingSections(new Set());
     setFilledSections(new Set());
+    
+    // Reset dual AI coordinator for new document
+    const newDualAI = new DualAICoordinator();
+    newDualAI.budgetCap = 1.0;
+    setDualAI(newDualAI);
+    setDualAIUsage(null);
 
     try {
       // Step 1 — extract pages (page-aware)
@@ -644,22 +653,6 @@ export default function App() {
           >
             <Download style={{ flexShrink: 0 }} />
             {sidebarOpen && <span>Download Excel</span>}
-          </button>
-
-          {/* AI Simulation */}
-          <button
-            onClick={() => setAiSimModal(true)}
-            className="kt-nav-item"
-            title={!sidebarOpen ? 'AI Simulation' : undefined}
-            style={{ 
-              justifyContent: sidebarOpen ? 'flex-start' : 'center',
-              background: 'linear-gradient(135deg, rgba(26, 66, 139, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%)',
-              borderColor: 'rgba(26, 66, 139, 0.3)',
-              borderWidth: '1px',
-            }}
-          >
-            <Bot style={{ flexShrink: 0, color: '#1a428b' }} />
-            {sidebarOpen && <span style={{ color: '#1a428b', fontWeight: 600 }}>AI Simulation</span>}
           </button>
 
           {/* Upload TOR */}
@@ -1019,25 +1012,6 @@ export default function App() {
         </footer>
       </div>
 
-      {/* AI Simulation Modal */}
-      <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Bot size={18} style={{ color: '#1a428b' }} />
-            <span>AI Project Viability Simulation</span>
-          </div>
-        }
-        open={aiSimModal}
-        onCancel={() => setAiSimModal(false)}
-        width={1200}
-        footer={null}
-        style={{ maxHeight: '90vh', overflow: 'auto' }}
-      >
-        <AISimulation 
-          projectData={project} 
-          onClose={() => setAiSimModal(false)} 
-        />
-      </Modal>
     </div>
     </ConfigProvider>
   );
