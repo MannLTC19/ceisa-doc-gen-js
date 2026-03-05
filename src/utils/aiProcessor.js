@@ -12,8 +12,11 @@ const TRIAGE_MODEL   = "claude-haiku-4-5-20251001";
 const ANALYSIS_MODEL = "claude-haiku-4-5-20251001";  // Haiku for both = max cost reduction
 const CLAUDE_API_URL = "/anthropic/v1/messages"; // proxied via vite.config.js
 
-const TRIAGE_MAX_TOKENS   = 256;   // Ultra-minimal: JSON only
-const ANALYSIS_MAX_TOKENS = 3000;  // Haiku focused output
+// ─── OPTIMIZED FOR $1 MAX BUDGET PER DOCUMENT ───────────────────────────────
+// Budget: $1 = ~1,250 input tokens (0.80/M) + ~250 output tokens (4.0/M) = ~1,500 total
+// Current setup: Triage (small) + Analysis (512 max output) = ~800-1,200 total tokens
+const TRIAGE_MAX_TOKENS   = 128;   // Ultra-minimal triage: page index only
+const ANALYSIS_MAX_TOKENS = 512;   // Strict output limit: focus on priority fields only
 
 // ─── LAYER 1: Raw text sanitizer ─────────────────────────────────────────────
 const sanitizeRawText = (text) =>
@@ -251,64 +254,79 @@ const parseAIResponse = (text) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  TRIAGE SYSTEM PROMPT  (Haiku — fast page scanner)
+//  TRIAGE SYSTEM PROMPT  (Haiku — ultra-fast page scanner, ~100 tokens)
 // ─────────────────────────────────────────────────────────────────────────────
-const TRIAGE_SYSTEM_PROMPT = `Index page numbers ONLY. Minimal JSON.
-{"bg":[],"prob":[],"req":[],"act":[],"proc":[],"uc":[],"risk":[],"ppl":[],"bud":[],"time":[],"out":[]}`;
+const TRIAGE_SYSTEM_PROMPT = `Index pages fast. Return ONLY JSON with page numbers:
+{"actors":[],"useCases":[],"requirements":[],"diagram":[],"asToBe":[],"risks":[]}
+Each array: list of page #s only. Minimal response.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  DEEP ANALYSIS SYSTEM PROMPT - PRIORITY FOCUSED (Haiku)
+//  RESEARCH TAB SYSTEM PROMPT - ULTRA-CONCISE & RESEARCH-FOCUSED
 //
-//  PRIORITY FIELDS (80% of tokens focus):
-//  1. kebutuhanFungsional (BRD) - CRITICAL
-//  2. useCases + actors (Penelitian/UAW) - CRITICAL  
-//  3. mermaid.* diagrams (FSD) - HIGH
-//  4. asIsToBe (BRD) - HIGH
+//  PRIORITY 1 (Research/Penelitian tab) — 60% tokens:
+//  1. useCases + actors (UAW/UUCW) - Use Case Deskripsi & Spesifikasi Aktor
+//  2. kebutuhanFungsional (Resume dari Kajian)
+//  3. asIsToBe (Kondisi As-Is To-Be)
 //
-//  SECONDARY (20% tokens):
-//  - kebutuhanNonFungsional, risikoBisnis - basic coverage only
-//  - metadata (nama, pengampu) - minimal
+//  PRIORITY 2 (FSD) — 20% tokens:
+//  1. mermaid diagrams (process flow, use case, ERD)
+//  2. scopeTimeline, budget, resources (from Project Charter)
+//
+//  PRIORITY 3 (Other) — 20% tokens:
+//  1. Non-functional reqs, risks
+//  2. Metadata
+//
+//  Output: COMPACT JSON ONLY (no explanations)
 // ─────────────────────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `JSON extract. PRIORITY FOCUS: Kebutuhan Functional, Use Cases, Actors, Diagram, As-Is To-Be.
+const SYSTEM_PROMPT = `EXTRACT ONLY (JSON):
+{
+  "actors": [{"id","name","role","interactions"}],
+  "useCases": [{"id","name","actors","steps","acceptance_criteria"}],
+  "kebutuhanFungsional": [{"id","desc","prioritas","criteria"}],
+  "asIsToBe": [{"factor","asIs","toBe","impact"}],
+  "mermaid": {"processFlow":"","useCaseDiagram":"","erd":""},
+  "lingkup": "project scope",
+  "jadwal": "timeline summary",
+  "sumberDaya": "resources overview",
+  "biaya": "budget summary",
+  "risikoBisnis": [{"risk","level"}],
+  "nama": "project name",
+  "pengampu": "sponsor"
+}
 
-CRITICAL (exhaustive):
-- kebutuhanFungsional: [{id, desc, prioritas:"M|H|L", owner, acceptance_criteria}] ≥15
-- useCases: [{id, name, transactions, actors, preconditions, postconditions, steps}] ≥10
-- actors: [{id, name, type:"GUI|API|Protocol", desc, role, interactions}] ≥8
-- mermaid.processFlow, mermaid.useCaseDiagram, mermaid.erd: detailed flows
-
-HIGH (thorough):
-- asIsToBe: [{id, factor, asIs, toBe, impact}] ≥8
-- kebutuhanNonFungsional: [{id, kategori:"Sec|Perf|Avail|Scalability", desc, target}] ≥5
-
-BASIC (metadata only):
-- nama, pengampu, unitPJ, kontakPIC, target
-- risikoBisnis: [{id, risk, level:"T|S|R"}] ≥3
-- detectedPeople: [] if mentioned
-
-MANDATORY JSON SCHEMA: {"kebutuhanFungsional","useCases","actors","mermaid","asIsToBe","kebutuhanNonFungsional","risikoBisnis","nama","pengampu","unitPJ","kontakPIC","target"}`;
+RULES: Be EXTREMELY CONCISE. Each field: max 2-3 lines. Priority: Actors > Use Cases > Functional Reqs > As-Is To-Be > Other.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  TOKEN ALLOCATION STRATEGY
+//  TOKEN ALLOCATION STRATEGY - $1 MAX BUDGET PER DOCUMENT
+//
+//  Total budget: $1 USD ≈ 1,500 tokens (input + output combined)
+//  Allocation:
+//    Triage pass:  ~100 tokens (0.08¢)
+//    Analysis:     ~1,400 tokens (0.92¢)
+//    Total:        ~1,500 tokens ($1.00)
 // ─────────────────────────────────────────────────────────────────────────────
 const TOKEN_ALLOCATION = {
   CRITICAL: {
-    kebutuhanFungsional: { priority: 1, minChars: 3000, maxTokens: 1200, description: "Functional Requirements (BRD)" },
-    useCases:            { priority: 1, minChars: 2500, maxTokens: 1000, description: "Use Cases (Penelitian/UAW)" },
-    actors:              { priority: 1, minChars: 1500, maxTokens: 600,  description: "Actors & Workflows (UUCW)" },
+    actors:              { priority: 1, maxTokens: 350,  description: "Aktor & Interaksi (UAW)" },
+    useCases:            { priority: 1, maxTokens: 350,  description: "Use Case Deskripsi (UUCW)" },
+    kebutuhanFungsional: { priority: 1, maxTokens: 250,  description: "Kebutuhan Fungsional (BRD)" },
   },
   HIGH: {
-    "mermaid.processFlow":    { priority: 2, minChars: 2000, maxTokens: 800, description: "Process Diagram (FSD)" },
-    "mermaid.useCaseDiagram": { priority: 2, minChars: 1500, maxTokens: 600, description: "Use Case Diagram" },
-    "mermaid.erd":            { priority: 2, minChars: 1500, maxTokens: 600, description: "Data Model Diagram" },
-    asIsToBe:                 { priority: 2, minChars: 1500, maxTokens: 600, description: "As-Is To-Be Mapping" },
+    asIsToBe:                 { priority: 2, maxTokens: 200, description: "Kondisi As-Is To-Be" },
+    "mermaid.processFlow":    { priority: 2, maxTokens: 150, description: "Process Flow Diagram (FSD)" },
+    "mermaid.useCaseDiagram": { priority: 2, maxTokens: 100, description: "Use Case Diagram (FSD)" },
   },
   MEDIUM: {
-    kebutuhanNonFungsional: { priority: 3, minChars: 800,  maxTokens: 300, description: "Non-Functional Requirements" },
-    risikoBisnis:           { priority: 3, minChars: 800,  maxTokens: 300, description: "Business Risks" },
+    "mermaid.erd":            { priority: 3, maxTokens: 80, description: "Data Model (ERD)" },
+    "lingkup":                { priority: 3, maxTokens: 40, description: "Lingkup Proyek" },
+    "jadwal":                 { priority: 3, maxTokens: 40, description: "Jadwal Proyek" },
+    "sumberDaya":             { priority: 3, maxTokens: 50, description: "Sumber Daya Proyek" },
+    "biaya":                  { priority: 3, maxTokens: 50, description: "Biaya Proyek" },
   },
   BASIC: {
-    metadata: { priority: 4, minChars: 200, maxTokens: 100, description: "Project Metadata" },
+    kebutuhanNonFungsional: { priority: 4, maxTokens: 30, description: "Kebutuhan Non-Fungsional" },
+    risikoBisnis:           { priority: 4, maxTokens: 30, description: "Risiko Bisnis" },
+    metadata:               { priority: 4, maxTokens: 20, description: "Metadata Proyek" },
   }
 };
 
@@ -386,23 +404,24 @@ const triageDocument = async (apiKey, skeleton) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  PASS 2 — Deep Analysis  (Opus)
+//  PASS 2 — Deep Analysis  (Haiku - Ultra-Efficient for $1 Budget)
 // ─────────────────────────────────────────────────────────────────────────────
 const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
-  // Attempt tiers: try with progressively smaller documents on 500 errors
-  const ATTEMPT_LIMITS = [60_000, 40_000, 20_000];  // Super aggressive reduction
+  // Aggressive truncation: target ~10k chars max to stay within 512 output token limit
+  // 1,200 input tokens ≈ 4,800 chars + overhead = ~5,000 char input budget
+  const ATTEMPT_LIMITS = [10_000, 6_000, 3_000];  // Aggressive reduction for $1 budget
 
   for (let attempt = 0; attempt < ATTEMPT_LIMITS.length; attempt++) {
     const maxChars = ATTEMPT_LIMITS[attempt];
     let doc = documentText;
 
     if (doc.length > maxChars) {
-      console.warn(`⚠️ [Attempt ${attempt + 1}] Truncating ${doc.length.toLocaleString()} → ${maxChars.toLocaleString()} chars`);
+      console.warn(`⚠️ [Attempt ${attempt + 1}] Truncating ${doc.length.toLocaleString()} → ${maxChars.toLocaleString()} chars for $1 budget`);
       doc = doc.substring(0, maxChars) +
-        "\n\n[Dokumen dipotong karena terlalu panjang. Analisis berdasarkan konten di atas.]";
+        "\n\n[Dokumen dipotong untuk menjaga budget $1/dokumen. Analisis berdasarkan konten teratas.]";
     }
 
-    console.log(`📄 [Attempt ${attempt + 1}] Sending ${doc.length.toLocaleString()} chars to Opus`);
+    console.log(`📄 [Attempt ${attempt + 1}] Sending ${doc.length.toLocaleString()} chars to Haiku (max ${ANALYSIS_MAX_TOKENS} output tokens)`);
 
     const userMessage = [
       contextNote,
@@ -417,7 +436,7 @@ const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
         userMessage,
       });
 
-      console.log(`✅ Opus done. Input: ${usage?.input_tokens?.toLocaleString()} tok, Output: ${usage?.output_tokens?.toLocaleString()} tok`);
+      console.log(`✅ Haiku done. Input: ${usage?.input_tokens?.toLocaleString()} tok, Output: ${usage?.output_tokens?.toLocaleString()} tok (Est. cost: $${((usage?.input_tokens * 0.80 + usage?.output_tokens * 4.0) / 1_000_000).toFixed(4)})`);
       return { text, usage };
 
     } catch (err) {
@@ -502,11 +521,11 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
         }
       }
     } else {
-      notify("ℹ️ Document is short — skipping triage, sending full text to Opus.");
+      notify("ℹ️ Document is short — skipping triage, sending full text to Haiku.");
     }
 
     // ── PASS 2: Deep Analysis ─────────────────────────────────────────────
-    notify(`🧠 Pass 2: Deep analysis with Claude Opus...`);
+    notify(`🧠 Pass 2: Deep analysis with Claude Haiku (max $1 budget)...`);
     const analysis = await analyzeDocument(apiKey, documentToAnalyze, contextNote);
     analysisUsage  = analysis.usage;
 
@@ -591,7 +610,7 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
 
     let friendlyMsg = error.message;
     if      (error.message.includes("401"))          friendlyMsg = "API key tidak valid. Periksa VITE_ANTHROPIC_API_KEY di .env.local Anda.";
-    else if (error.message.includes("403"))          friendlyMsg = "API key tidak memiliki izin model ini. Pastikan key memiliki akses Claude Opus.";
+    else if (error.message.includes("403"))          friendlyMsg = "API key tidak memiliki izin model ini. Pastikan key memiliki akses Claude Haiku.";
     else if (error.message.includes("429"))          friendlyMsg = "Rate limit tercapai. Tunggu beberapa menit lalu coba lagi.";
     else if (error.message.includes("529") || error.message.includes("503"))
                                                      friendlyMsg = "Server Claude sedang sibuk. Coba lagi dalam beberapa saat.";
