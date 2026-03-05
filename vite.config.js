@@ -13,6 +13,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite:      (path) => path.replace(/^\/anthropic/, ''),
       },
+      '/gemini': {
+        target:       'https://generativelanguage.googleapis.com',
+        changeOrigin: true,
+        rewrite:      (path) => path.replace(/^\/gemini/, ''),
+      },
     },
   },
 });

@@ -86,6 +86,7 @@ export class AIExtractionPipeline {
 
   /**
    * Extract with Haiku (fast, cheap summarization)
+   * Uses vite proxy: /anthropic/* -> https://api.anthropic.com
    */
   async _extractWithHaiku(sections) {
     const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
@@ -109,7 +110,7 @@ ${section}
 Return JSON: { summary: "...", importance: 1-10, keywords: [...] }`;
 
       try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        const response = await fetch('/anthropic/v1/messages', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -117,7 +118,7 @@ Return JSON: { summary: "...", importance: 1-10, keywords: [...] }`;
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model: 'claude-haiku-3-5-20241022',
+            model: 'claude-haiku-4-5-20251001',
             max_tokens: 300,
             temperature: 0.3,
             system: 'Extract only key information. Return JSON only.',
@@ -157,6 +158,7 @@ Return JSON: { summary: "...", importance: 1-10, keywords: [...] }`;
 
   /**
    * Extract with Gemini (alternative perspective summarization)
+   * Uses vite proxy: /gemini/* -> https://generativelanguage.googleapis.com
    */
   async _extractWithGemini(sections) {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -179,7 +181,7 @@ ${section}
 JSON: { summary: "...", importance: 1-10, keywords: [...] }`;
 
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch(`/gemini/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -279,6 +281,7 @@ export class OpusAnalyzer {
   /**
    * Analyze extracted summaries with Opus
    * Produces structured JSON for distribution
+   * Uses vite proxy: /anthropic/* -> https://api.anthropic.com
    */
   async analyzeAndStructure(summaries, sections, onProgress) {
     const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
@@ -331,7 +334,7 @@ Requirements:
 - Keep descriptions concise but complete`;
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/anthropic/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -431,6 +434,7 @@ export class AIDistributionPipeline {
 
   /**
    * Distribute single section using fastest AI (Gemini or Haiku)
+   * Uses vite proxy: /gemini/* -> https://generativelanguage.googleapis.com
    */
   async _distributeSection(section, opusAnalysis) {
     // Extract relevant data from Opus analysis
@@ -453,7 +457,7 @@ Keep format clean, concise, complete.`;
     if (!geminiKey) throw new Error('Gemini key required');
 
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+      const response = await fetch(`/gemini/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
