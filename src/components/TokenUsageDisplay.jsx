@@ -62,7 +62,7 @@ const TokenUsageDisplay = ({ usageData, maxBudgetUSD = 0.01, isLoading = false }
         totalTokens: total,
         totalCost: costEstimate.total_usd,
         passCount: 2,
-        efficiency: { avgTokensPerPass: Math.round(total / 2), costPerKToken: (costEstimate.total_usd * 1000).toFixed(4) },
+        efficiency: { avgTokensPerPass: Math.round(total / 2), costPerKToken: costEstimate.total_usd * 1000 },
         fieldSummary,
         costBreakdown: costEstimate
       };
@@ -113,7 +113,7 @@ const TokenUsageDisplay = ({ usageData, maxBudgetUSD = 0.01, isLoading = false }
               value={summary.totalTokens}
               suffix="tok"
               prefix={<ThunderboltOutlined style={{ color: '#faad14' }} />}
-              valueStyle={{ color: '#1890ff' }}
+              styles={{ content: { color: '#1890ff' } }}
             />
             <div style={{ fontSize: '12px', color: '#666', marginTop: 8 }}>
               Input: {summary.totalInputTokens.toLocaleString('id-ID')} | Output: {summary.totalOutputTokens.toLocaleString('id-ID')}
@@ -128,7 +128,7 @@ const TokenUsageDisplay = ({ usageData, maxBudgetUSD = 0.01, isLoading = false }
               value={summary.totalCost}
               precision={4}
               prefix={<DollarOutlined />}
-              valueStyle={{ color: isOverBudget ? '#ff4d4f' : '#52c41a' }}
+              styles={{ content: { color: isOverBudget ? '#ff4d4f' : '#52c41a' } }}
             />
             <div style={{ fontSize: '12px', color: '#666', marginTop: 8 }}>
               ≈ Rp {costIDR.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
@@ -142,7 +142,7 @@ const TokenUsageDisplay = ({ usageData, maxBudgetUSD = 0.01, isLoading = false }
               title="Passes Completed"
               value={summary.passCount}
               suffix="x"
-              valueStyle={{ color: '#722ed1' }}
+              styles={{ content: { color: '#722ed1' } }}
             />
             <div style={{ fontSize: '12px', color: '#666', marginTop: 8 }}>
               Avg: {summary.efficiency.avgTokensPerPass?.toLocaleString('id-ID') || '—'} tok/pass
@@ -156,7 +156,7 @@ const TokenUsageDisplay = ({ usageData, maxBudgetUSD = 0.01, isLoading = false }
               title={isOverBudget ? '⚠️ OVER BUDGET' : 'Budget Remaining'}
               value={isOverBudget ? '—' : efficiency}
               suffix={isOverBudget ? '' : '%'}
-              valueStyle={{ color: isOverBudget ? '#ff4d4f' : '#52c41a' }}
+              styles={{ content: { color: isOverBudget ? '#ff4d4f' : '#52c41a' } }}
             />
             <div style={{ fontSize: '12px', color: '#666', marginTop: 8 }}>
               Budget: USD ${maxBudgetUSD.toFixed(4)}
@@ -287,7 +287,7 @@ const TokenUsageDisplay = ({ usageData, maxBudgetUSD = 0.01, isLoading = false }
               title="Avg Tokens/Pass"
               value={summary.efficiency.avgTokensPerPass || 0}
               prefix={<ThunderboltOutlined />}
-              valueStyle={{ fontSize: 14 }}
+              styles={{ content: { fontSize: 14 } }}
             />
           </Col>
           <Col xs={24} sm={12} md={6}>
@@ -295,7 +295,7 @@ const TokenUsageDisplay = ({ usageData, maxBudgetUSD = 0.01, isLoading = false }
               title="Cost per 1K Tokens"
               value={(summary.efficiency.costPerKToken || 0).toFixed(4)}
               prefix="$"
-              valueStyle={{ fontSize: 14 }}
+              styles={{ content: { fontSize: 14 } }}
             />
           </Col>
           <Col xs={24} sm={12} md={6}>
