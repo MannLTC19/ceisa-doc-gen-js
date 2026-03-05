@@ -31,6 +31,16 @@ export const AIFillButton = ({
 
   // Calculate costs
   const sectionEstimate = TokenBudgetTracker.estimateSectionCost(sectionKey);
+  
+  // Handle missing section definition
+  if (!sectionEstimate || typeof sectionEstimate === 'number') {
+    return (
+      <div className="text-red-500 text-xs">
+        ⚠️ Section not configured ({sectionKey})
+      </div>
+    );
+  }
+
   const newTotalCost = currentCost + sectionEstimate.cost;
   const wouldExceedBudget = newTotalCost > budgetCap;
   const canGenerate = !disabled && !isCompleted && !wouldExceedBudget && !isLoading;
@@ -67,7 +77,7 @@ export const AIFillButton = ({
     <div style={{ fontSize: 12 }}>
       <strong>Budget Limit Exceeded</strong>
       <div>Current: {formatUSD(currentCost)}</div>
-      <div>+ This section: {formatUSD(sectionEstimate.cost)}</div>
+      <div>+ This section: {formatUSD(sectionEstimate?.cost || 0)}</div>
       <div>= Total: {formatUSD(newTotalCost)} (limit: {formatUSD(budgetCap)})</div>
     </div>
   ) : (
@@ -75,9 +85,9 @@ export const AIFillButton = ({
       <div><strong>{label}</strong></div>
       <div style={{ marginTop: 6, borderTop: '1px solid rgba(255,255,255,0.3)', paddingTop: 4 }}>
         <div>Input: ~1,000 tokens</div>
-        <div>Output: ~{Math.round(sectionEstimate.breakdown.outputTokens)} tokens</div>
+        <div>Output: ~{Math.round(sectionEstimate?.breakdown?.outputTokens || estimatedTokens)} tokens</div>
         <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-          <strong>Est. cost: {formatUSD(sectionEstimate.cost)}</strong>
+          <strong>Est. cost: {formatUSD(sectionEstimate?.cost || 0)}</strong>
         </div>
         <div style={{ marginTop: 4 }}>Current: {formatUSD(currentCost)}</div>
         <div>After: {formatUSD(newTotalCost)}</div>

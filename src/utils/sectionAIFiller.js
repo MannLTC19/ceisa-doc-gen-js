@@ -241,6 +241,15 @@ Return JSON array.`,
   },
 };
 
+// Add short key aliases for backward compatibility
+SECTION_DEFINITIONS['actors'] = SECTION_DEFINITIONS['penelitian.actors'];
+SECTION_DEFINITIONS['useCases'] = SECTION_DEFINITIONS['penelitian.useCases'];
+SECTION_DEFINITIONS['kebutuhanFungsional'] = SECTION_DEFINITIONS['penelitian.kebutuhanFungsional'];
+SECTION_DEFINITIONS['asIsToBe'] = SECTION_DEFINITIONS['brd.asIsToBe'];
+SECTION_DEFINITIONS['processFlow'] = SECTION_DEFINITIONS['fsd.processFlow'];
+SECTION_DEFINITIONS['useCaseDiagram'] = SECTION_DEFINITIONS['fsd.useCaseDiagram'];
+SECTION_DEFINITIONS['erd'] = SECTION_DEFINITIONS['fsd.erd'];
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  TOKEN ESTIMATION & BUDGET TRACKING
 // ─────────────────────────────────────────────────────────────────────────────
