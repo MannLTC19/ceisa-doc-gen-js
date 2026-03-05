@@ -1,9 +1,38 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ArrowRight } from 'lucide-react';
+import { ChevronDown, ArrowRight, Zap, Lock, TrendingUp, FileText, Sparkles, Brain } from 'lucide-react';
 
 const LandingPageV2 = ({ onEnter }) => {
   const [isScrolling, setIsScrolling] = useState(false);
+  const [mouse, setMouse] = useState({ x: 0, y: 0 });
+  const [cardRotations, setCardRotations] = useState({});
   const observerRef = useRef(null);
+  const cardsRef = useRef({});
+
+  // 3D Mouse Tracking
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMouse({ x: e.clientX, y: e.clientY });
+      
+      // Update card rotations based on mouse position
+      Object.keys(cardsRef.current).forEach((cardId) => {
+        const card = cardsRef.current[cardId];
+        if (card) {
+          const rect = card.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          const rotateX = (e.clientY - centerY) * 0.02;
+          const rotateY = (e.clientX - centerX) * -0.02;
+          setCardRotations(prev => ({
+            ...prev,
+            [cardId]: { rotateX, rotateY }
+          }));
+        }
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   // Scroll Reveal Animation dengan Intersection Observer
   useEffect(() => {
@@ -63,18 +92,31 @@ const LandingPageV2 = ({ onEnter }) => {
           50% { opacity: 0.8; }
         }
 
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
+
+        @keyframes parallax {
+          0% { transform: translateZ(-50px); }
+          100% { transform: translateZ(50px); }
+        }
+
         .glass-card {
           background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
           border: 1px solid rgba(255,255,255,0.05);
           box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.1);
           backdrop-filter: blur(10px);
           transition: all 0.3s cubic-bezier(0.23, 1, 0.320, 1);
+          transform-style: preserve-3d;
+          perspective: 1000px;
         }
 
         .glass-card:hover {
-          border: 1px solid rgba(255,255,255,0.15);
-          box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.2);
+          border: 1px solid rgba(26, 66, 139, 0.3);
+          box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.2), 0 8px 32px rgba(26, 66, 139, 0.15);
           transform: translateY(-4px);
+          background: linear-gradient(135deg, rgba(26, 66, 139, 0.05) 0%, rgba(26, 66, 139, 0.02) 100%);
         }
 
         .glow-button {
@@ -209,14 +251,18 @@ const LandingPageV2 = ({ onEnter }) => {
 
         {/* Navbar */}
         <nav className="relative z-10 flex items-center justify-between px-[120px] py-5" data-reveal>
-          {/* Logo */}
-          <div className="text-white font-medium text-xl tracking-tighter" style={{ width: '187px', height: '25px' }}>
-            LOGOIPSUM
+          {/* Logo - Bea Cukai DJBC */}
+          <div className="flex items-center gap-3" style={{ color: '#1A428B' }}>
+            <div className="text-2xl font-bold" style={{ color: '#1A428B' }}>🏛️</div>
+            <div className="flex flex-col">
+              <div className="text-white font-bold text-sm tracking-tight">CEISA DOC GEN</div>
+              <div className="text-xs text-white/60">Bea Cukai DJBC</div>
+            </div>
           </div>
 
           {/* Nav Links - Hidden on Mobile */}
           <div className="hidden lg:flex items-center gap-[30px]">
-            {['Get Started', 'Developers', 'Features', 'Resources'].map((link) => (
+            {['Features', 'Capabilities', 'Resources'].map((link) => (
               <div key={link} className="flex items-center gap-2 cursor-pointer group">
                 <span className="text-white text-sm font-medium">{link}</span>
                 <ChevronDown size={14} className="text-white opacity-50 group-hover:opacity-100 transition" />
@@ -225,8 +271,8 @@ const LandingPageV2 = ({ onEnter }) => {
           </div>
 
           {/* Right CTA */}
-          <button className="glow-button relative px-[29px] py-[11px] rounded-full border-[0.6px] border-white bg-black text-white text-sm font-medium hover:bg-white hover:text-black transition duration-300">
-            <span className="relative z-10">Join Waitlist</span>
+          <button className="glow-button relative px-[29px] py-[11px] rounded-full border-[0.6px] font-medium hover:bg-opacity-90 transition duration-300" style={{ borderColor: '#1A428B', backgroundColor: '#1A428B', color: 'white' }}>
+            <span className="relative z-10">Get Started</span>
           </button>
         </nav>
 
@@ -234,37 +280,38 @@ const LandingPageV2 = ({ onEnter }) => {
         <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-4 pt-[200px] md:pt-[280px]">
           {/* Badge */}
           <div 
-            className="flex items-center gap-2 px-4 py-2 rounded-[20px] border border-white/20 bg-white/10 mb-8"
+            className="flex items-center gap-2 px-4 py-2 rounded-[20px] border font-medium mb-8"
             data-reveal
+            style={{ borderColor: '#1A428B', backgroundColor: 'rgba(26, 66, 139, 0.1)', color: '#1A428B' }}
           >
-            <div className="w-1 h-1 rounded-full bg-white" />
-            <span className="text-xs md:text-sm font-medium text-white/60">Early access available from</span>
-            <span className="text-xs md:text-sm font-medium text-white">May 1, 2026</span>
+            <Sparkles size={14} />
+            <span className="text-xs md:text-sm">Powered by AI-Assisted Documentation</span>
           </div>
 
           {/* Main Heading */}
           <h1 
-            className="text-5xl md:text-7xl font-medium text-center max-w-2xl leading-[1.28] mb-6 gradient-text"
+            className="text-5xl md:text-7xl font-medium text-center max-w-4xl leading-[1.28] mb-6 gradient-text"
             data-reveal
           >
-            Web3 at the Speed of Experience
+            Automated Project Documentation for Bea Cukai
           </h1>
 
           {/* Subtitle */}
           <p 
-            className="text-base md:text-lg text-white/70 text-center max-w-2xl mb-8"
+            className="text-base md:text-lg text-white/70 text-center max-w-3xl mb-8"
             data-reveal
           >
-            Powering seamless experiences and real-time connections, EOS is the base for creators who move with purpose, leveraging resilience, speed, and scale to shape the future.
+            Generate comprehensive project documentation with AI-powered section filling. Control token usage, maintain compliance, and deliver professional documentation in minutes.
           </p>
 
           {/* CTA Button */}
           <button 
-            className="glow-button relative px-[29px] py-[14px] rounded-full border-[0.6px] border-white bg-white text-black text-sm font-medium hover:bg-white/90 transition duration-300"
+            className="relative px-[29px] py-[14px] rounded-full border-[0.6px] text-sm font-medium hover:opacity-90 transition duration-300"
             onClick={onEnter}
             data-reveal
+            style={{ borderColor: '#1A428B', backgroundColor: '#1A428B', color: 'white' }}
           >
-            <span className="relative z-10">Join Waitlist</span>
+            <span className="relative z-10">Launch Application</span>
           </button>
         </div>
       </section>
@@ -273,7 +320,7 @@ const LandingPageV2 = ({ onEnter }) => {
       <section className="relative w-full py-16 bg-black overflow-hidden border-y border-white/5" data-reveal>
         <div className="marquee-container">
           <div className="marquee-scroll">
-            {['VERTEX', 'Quantum', 'Nexus.', 'O B S I D I A N', 'Lumina'].map((brand, idx) => (
+            {['Bea Cukai DJBC', 'AI Technology', 'Doc Generation', 'Smart Budget', 'Compliance First'].map((brand, idx) => (
               <React.Fragment key={idx}>
                 <div className={`text-white/40 font-medium tracking-wide whitespace-nowrap ${idx % 2 === 0 ? 'italic' : 'tracking-widest'}`}>
                   {brand}
@@ -281,7 +328,7 @@ const LandingPageV2 = ({ onEnter }) => {
                 <div className="text-white/40">•</div>
               </React.Fragment>
             ))}
-            {['VERTEX', 'Quantum', 'Nexus.', 'O B S I D I A N', 'Lumina'].map((brand, idx) => (
+            {['Bea Cukai DJBC', 'AI Technology', 'Doc Generation', 'Smart Budget', 'Compliance First'].map((brand, idx) => (
               <React.Fragment key={`repeat-${idx}`}>
                 <div className={`text-white/40 font-medium tracking-wide whitespace-nowrap ${idx % 2 === 0 ? 'italic' : 'tracking-widest'}`}>
                   {brand}
@@ -296,49 +343,89 @@ const LandingPageV2 = ({ onEnter }) => {
       {/* ─── 3. FEATURES BENTO BOX ─── */}
       <section className="relative w-full py-24 bg-black px-4 md:px-8">
         {/* Ambient Blur */}
-        <div className="absolute ambient-blur top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -z-10" />
+        <div className="absolute ambient-blur top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -z-10" style={{ background: 'rgba(26, 66, 139, 0.1)' }} />
 
         {/* Content */}
         <div className="max-w-7xl mx-auto">
           {/* Heading */}
           <div className="text-center mb-16" data-reveal>
             <h2 className="text-5xl md:text-6xl font-medium bg-gradient-to-b from-white via-white to-white/50 bg-clip-text text-transparent mb-4">
-              Engineered for the Next Generation
+              Intelligent Documentation at Scale
             </h2>
             <p className="text-white/50 text-lg">
-              Building the infrastructure for Web3 scale
+              AI-powered section filling with complete control and transparency
             </p>
           </div>
 
           {/* Bento Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-reveal>
-            {/* Large Card 1 */}
-            <div className="glass-card md:col-span-2 p-8 rounded-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -z-10" />
+            {/* Large Card 1 - AI Filling */}
+            <div 
+              ref={(el) => { cardsRef.current['card1'] = el; }}
+              className="glass-card md:col-span-2 p-8 rounded-lg relative overflow-hidden group cursor-pointer transition-all"
+              style={{
+                transform: cardRotations['card1'] ? `perspective(1000px) rotateX(${cardRotations['card1'].rotateX}deg) rotateY(${cardRotations['card1'].rotateY}deg)` : 'perspective(1000px) rotateX(0) rotateY(0)',
+                transitionDuration: '0.1s'
+              }}
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -z-10" style={{ background: 'rgba(26, 66, 139, 0.2)' }} />
               <div className="relative z-10">
-                <h3 className="text-2xl md:text-3xl font-medium mb-3">Sub-second Finality</h3>
-                <p className="text-white/60">Experience instant transaction confirmation with our revolutionary consensus mechanism.</p>
+                <div className="flex items-center gap-3 mb-3">
+                  <Brain size={28} style={{ color: '#1A428B' }} />
+                  <h3 className="text-2xl md:text-3xl font-medium">AI-Powered Filling</h3>
+                </div>
+                <p className="text-white/60">Auto-generate research, requirements, and specifications with intelligent AI, while maintaining complete control and budget transparency.</p>
               </div>
             </div>
 
-            {/* Small Card 2 */}
-            <div className="glass-card p-8 rounded-lg">
-              <h3 className="text-xl md:text-2xl font-medium mb-2">Infinite Scale</h3>
-              <p className="text-white/60 text-sm">Horizontally scalable infrastructure for millions of users.</p>
+            {/* Small Card 2 - Budget Control */}
+            <div 
+              ref={(el) => { cardsRef.current['card2'] = el; }}
+              className="glass-card p-8 rounded-lg cursor-pointer transition-all"
+              style={{
+                transform: cardRotations['card2'] ? `perspective(1000px) rotateX(${cardRotations['card2'].rotateX}deg) rotateY(${cardRotations['card2'].rotateY}deg)` : 'perspective(1000px) rotateX(0) rotateY(0)',
+                transitionDuration: '0.1s'
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp size={20} style={{ color: '#1A428B' }} />
+                <h3 className="text-xl md:text-2xl font-medium">Smart Budget</h3>
+              </div>
+              <p className="text-white/60 text-sm">$1 hard cap per document with real-time cost tracking and per-section control.</p>
             </div>
 
-            {/* Small Card 3 */}
-            <div className="glass-card p-8 rounded-lg">
-              <h3 className="text-xl md:text-2xl font-medium mb-2">Institutional Security</h3>
-              <p className="text-white/60 text-sm">Enterprise-grade security audited by leading blockchain firms.</p>
+            {/* Small Card 3 - Government Compliance */}
+            <div 
+              ref={(el) => { cardsRef.current['card3'] = el; }}
+              className="glass-card p-8 rounded-lg cursor-pointer transition-all"
+              style={{
+                transform: cardRotations['card3'] ? `perspective(1000px) rotateX(${cardRotations['card3'].rotateX}deg) rotateY(${cardRotations['card3'].rotateY}deg)` : 'perspective(1000px) rotateX(0) rotateY(0)',
+                transitionDuration: '0.1s'
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Lock size={20} style={{ color: '#1A428B' }} />
+                <h3 className="text-xl md:text-2xl font-medium">Government Grade</h3>
+              </div>
+              <p className="text-white/60 text-sm">Compliant with Bea Cukai standards and Indonesian government documentation requirements.</p>
             </div>
 
-            {/* Large Card 4 */}
-            <div className="glass-card md:col-span-2 p-8 rounded-lg relative overflow-hidden group">
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -z-10" />
+            {/* Large Card 4 - Comprehensive Sections */}
+            <div 
+              ref={(el) => { cardsRef.current['card4'] = el; }}
+              className="glass-card md:col-span-2 p-8 rounded-lg relative overflow-hidden group cursor-pointer transition-all"
+              style={{
+                transform: cardRotations['card4'] ? `perspective(1000px) rotateX(${cardRotations['card4'].rotateX}deg) rotateY(${cardRotations['card4'].rotateY}deg)` : 'perspective(1000px) rotateX(0) rotateY(0)',
+                transitionDuration: '0.1s'
+              }}
+            >
+              <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full blur-3xl -z-10" style={{ background: 'rgba(26, 66, 139, 0.2)' }} />
               <div className="relative z-10">
-                <h3 className="text-2xl md:text-3xl font-medium mb-3">Fully EVM Compatible</h3>
-                <p className="text-white/60">Deploy your Ethereum contracts instantly without modification.</p>
+                <div className="flex items-center gap-3 mb-3">
+                  <FileText size={28} style={{ color: '#1A428B' }} />
+                  <h3 className="text-2xl md:text-3xl font-medium">15 Critical Sections</h3>
+                </div>
+                <p className="text-white/60">Cover UAW, UUCW, BRD, FSD, Charter, and Kajian with automatic priority filling for research-focused documentation.</p>
               </div>
             </div>
           </div>
@@ -350,12 +437,12 @@ const LandingPageV2 = ({ onEnter }) => {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 divide-x divide-white/10">
             {[
-              { metric: '100k+', label: 'Transactions Per Second' },
-              { metric: '<400ms', label: 'Time to Finality' },
-              { metric: '$0.001', label: 'Average Transaction Fee' },
+              { metric: '92%', label: 'Cost Reduction vs Manual' },
+              { metric: '<$0.01', label: 'Per Document Average' },
+              { metric: '15', label: 'Auto-Fillable Sections' },
             ].map((item, idx) => (
               <div key={idx} className="py-8 px-8 text-center">
-                <div className="gradient-text text-5xl md:text-6xl font-medium mb-2">
+                <div className="gradient-text text-5xl md:text-6xl font-medium mb-2" style={{ backgroundImage: `linear-gradient(144.5deg, #1A428B 28%, rgba(26, 66, 139, 0) 115%)` }}>
                   {item.metric}
                 </div>
                 <p className="text-white/50 text-sm md:text-base">{item.label}</p>
@@ -369,18 +456,18 @@ const LandingPageV2 = ({ onEnter }) => {
       <section className="relative w-full py-32 bg-black grid-pattern" data-reveal>
         <div className="max-w-4xl mx-auto px-4 flex flex-col items-center">
           {/* Developer Badge */}
-          <div className="px-4 py-2 rounded-full border border-white/15 text-white/60 text-xs uppercase tracking-widest font-medium mb-8">
+          <div className="px-4 py-2 rounded-full border border-white/15 text-white/60 text-xs uppercase tracking-widest font-medium mb-8" style={{ borderColor: '#1A428B', color: '#1A428B' }}>
             Developer First
           </div>
 
           {/* Heading */}
           <h2 className="text-5xl md:text-6xl font-medium text-center mb-6">
-            Connect in lines, not days.
+            Section-Level AI Control
           </h2>
 
           {/* Subtitle */}
           <p className="text-lg md:text-2xl text-white/50 text-center max-w-2xl mb-8">
-            Our unified SDK abstracts away the complexity of Web3, letting you focus on building.
+            Click "Fill with AI" per section. Real-time budget tracking. Maximum $1 per document.
           </p>
 
           {/* Documentation Link */}
@@ -388,14 +475,14 @@ const LandingPageV2 = ({ onEnter }) => {
             href="#docs"
             className="group flex items-center gap-2 text-white/70 hover:text-white transition mb-16 cursor-pointer"
           >
-            <span>Read Documentation</span>
+            <span>View Documentation</span>
             <ArrowRight size={16} className="group-hover:translate-x-2 transition" />
           </a>
 
           {/* Code Editor */}
           <div className="relative w-full max-w-2xl">
             {/* Ambient Glow */}
-            <div className="absolute inset-0 rounded-lg bg-white/3 blur-3xl opacity-30 -z-10" />
+            <div className="absolute inset-0 rounded-lg opacity-30 -z-10" style={{ background: 'rgba(26, 66, 139, 0.3)', filter: 'blur(3rem)' }} />
 
             <div className="code-editor">
               {/* Header with Traffic Lights */}
@@ -405,23 +492,27 @@ const LandingPageV2 = ({ onEnter }) => {
                   <div className="traffic-light traffic-yellow" />
                   <div className="traffic-light traffic-green" />
                 </div>
-                <span className="text-white/50 text-xs mx-auto">init.ts</span>
+                <span className="text-white/50 text-xs mx-auto">usage.ts</span>
                 <div className="w-16" />
               </div>
 
               {/* Code Content */}
               <div className="code-content">
-{`<span className="keyword">import</span> { <span className="class">EOS</span> } <span className="keyword">from</span> <span className="string">'@eosnetwork/sdk'</span>;
+{`<span className="keyword">// 1. Upload document</span>
+<span className="keyword">const</span> <span className="class">document</span> = <span className="keyword">await</span> <span className="class">uploadFile</span>();
 
-<span className="keyword">const</span> <span className="class">client</span> = <span className="keyword">new</span> <span className="class">EOS</span>();
-
-<span className="keyword">const</span> <span className="class">transaction</span> = <span className="keyword">await</span> <span className="class">client</span>.sendTransaction({
-  <span className="keyword">to</span>: <span className="string">'0x742d35Cc6634C0532925a3b844Bc9e7595f42b01'</span>,
-  <span className="class">value</span>: <span className="string">'1.5'</span>,
-  <span className="boolean">confirmed</span>: <span className="boolean">true</span>
+<span className="keyword">// 2. Click "Fill with AI" button</span>
+<span className="keyword">const</span> <span className="class">heroSection</span> = <span className="keyword">await</span> <span className="class">fillSectionWithAI</span>({
+  <span className="class">section</span>: <span className="string">'actors'</span>,
+  <span className="class">budget</span>: <span className="string">'1.00'</span>
 });
 
-<span className="comment">// Sub-second finality guaranteed</span>`}
+<span className="keyword">// 3. Monitor real-time cost</span>
+<span className="keyword">if</span> (budgetUsed > <span className="string">'0.80'</span>) {
+  <span className="class">showWarning</span>(<span className="string">'Approaching budget'</span>);
+}
+
+<span className="comment">// Full control, zero surprises</span>`}
               </div>
             </div>
           </div>
@@ -430,22 +521,23 @@ const LandingPageV2 = ({ onEnter }) => {
 
       {/* ─── 6. BOTTOM CTA ─── */}
       <section className="relative w-full py-32 bg-black flex flex-col items-center justify-center overflow-hidden" data-reveal>
-        {/* Massive Radial Blur */}
-        <div className="absolute w-[600px] h-[400px] bg-white/3 rounded-full blur-[100px] -z-10" />
+        {/* Massive Radial Blur with Bea Cukai color */}
+        <div className="absolute w-[600px] h-[400px] rounded-full blur-[100px] -z-10" style={{ background: 'rgba(26, 66, 139, 0.2)' }} />
 
         {/* Content */}
         <div className="max-w-3xl text-center px-4">
           <h2 className="text-6xl md:text-7xl font-medium mb-6 gradient-text">
-            Ready to build the future?
+            Start Generating Docs Today
           </h2>
           <p className="text-lg md:text-xl text-white/70 mb-12">
-            Join thousands of creators and developers shaping the next generation of the internet.
+            Join project managers and documentation specialists at Bea Cukai who are saving hours with AI-powered section filling and complete budget control.
           </p>
           <button 
-            className="glow-button relative px-[36px] py-[14px] rounded-full border-[0.6px] border-white bg-white text-black text-sm font-medium hover:bg-white/90 transition duration-300"
+            className="relative px-[36px] py-[14px] rounded-full border-[0.6px] text-sm font-medium hover:opacity-90 transition duration-300"
             onClick={onEnter}
+            style={{ borderColor: '#1A428B', backgroundColor: '#1A428B', color: 'white' }}
           >
-            <span className="relative z-10">Join Waitlist</span>
+            <span className="relative z-10">Launch Application</span>
           </button>
         </div>
       </section>
@@ -455,11 +547,17 @@ const LandingPageV2 = ({ onEnter }) => {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             {/* Logo */}
-            <div className="text-white/80 font-medium">LOGOIPSUM</div>
+            <div className="flex items-center gap-2" style={{ color: '#1A428B' }}>
+              <span className="text-2xl font-bold">🏛️</span>
+              <div>
+                <div className="text-white font-bold text-sm">CEISA DOC GEN</div>
+                <div className="text-xs text-white/60">Bea Cukai DJBC</div>
+              </div>
+            </div>
 
             {/* Center Links */}
             <div className="flex gap-8 text-center md:text-left">
-              {['Privacy Policy', 'Terms of Service', 'Twitter', 'Discord'].map((link) => (
+              {['Documentation', 'Support', 'GitHub', 'Contact'].map((link) => (
                 <a 
                   key={link}
                   href="#"
@@ -472,7 +570,7 @@ const LandingPageV2 = ({ onEnter }) => {
 
             {/* Copyright */}
             <p className="text-sm text-white/30">
-              © 2026 EOS. All rights reserved.
+              © 2024 CEISA. Bea Cukai DJBC. All rights reserved.
             </p>
           </div>
         </div>
