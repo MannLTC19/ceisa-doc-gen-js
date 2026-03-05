@@ -10,7 +10,7 @@ import LandingPageV2 from './components/LandingPageV2.jsx';
 import TokenUsageDisplay from './components/TokenUsageDisplay.jsx';
 import TokenBudgetMonitor from './components/TokenBudgetMonitor.jsx';
 import AIModelMonitor from './components/AIModelMonitor.jsx';
-import ThreeTierPipelineMonitor from './components/ThreeTierPipelineMonitor.jsx';
+// import ThreeTierPipelineMonitor from './components/ThreeTierPipelineMonitor.jsx'; // DISABLED - CORS issues
 import SectionWithAIFill from './components/SectionWithAIFill.jsx';
 import { TabKajian }     from './components/TabKajian.jsx';
 import { TabPenelitian } from './components/TabPenelitian.jsx';
@@ -19,7 +19,7 @@ import { TabFSD }        from './components/TabFSD.jsx';
 import { TabCharter }    from './components/TabCharter.jsx';
 
 import { DualAICoordinator } from './utils/dualAIFiller';
-import ThreeTierPipelineOrchestrator from './utils/threeTierOrchestrator';
+// import ThreeTierPipelineOrchestrator from './utils/threeTierOrchestrator'; // DISABLED - CORS issues
 
 import {
   ROLE_RATES_2023,
@@ -250,12 +250,12 @@ export default function App() {
   const [filledSections, setFilledSections] = useState(new Set());
   const [showTokenMonitor, setShowTokenMonitor] = useState(false);
   
-  // ─── Three-Tier AI Pipeline State ───────────────────────────────────────
-  const [threeTierOrchestrator, setThreeTierOrchestrator] = useState(
-    new ThreeTierPipelineOrchestrator(1.0)
-  );
-  const [threeTierUsage, setThreeTierUsage] = useState(null);
-  const [threeTierActive, setThreeTierActive] = useState(false);
+  // ─── Three-Tier AI Pipeline State - DISABLED ─────────────────────────
+  // const [threeTierOrchestrator, setThreeTierOrchestrator] = useState(
+  //   new ThreeTierPipelineOrchestrator(1.0)
+  // );
+  // const [threeTierUsage, setThreeTierUsage] = useState(null);
+  // const [threeTierActive, setThreeTierActive] = useState(false);
 
   const isLoading = uploadStatus === STATUS.EXTRACTING || uploadStatus === STATUS.ANALYZING;
 
@@ -332,11 +332,11 @@ export default function App() {
     setLoadingSections(new Set());
     setFilledSections(new Set());
     
-    // Reset three-tier orchestrator for new document
-    const newOrchestrator = new ThreeTierPipelineOrchestrator(1.0);
-    setThreeTierOrchestrator(newOrchestrator);
-    setThreeTierUsage(null);
-    setThreeTierActive(false);
+    // Reset three-tier orchestrator - DISABLED
+    // const newOrchestrator = new ThreeTierPipelineOrchestrator(1.0);
+    // setThreeTierOrchestrator(newOrchestrator);
+    // setThreeTierUsage(null);
+    // setThreeTierActive(false);
 
     try {
       // Step 1 — extract pages (page-aware)
@@ -552,91 +552,91 @@ export default function App() {
     setProject(prev => ({ ...prev, [name]: (prev[name] || []).filter(i => i.id !== id) }));
   }, []);
 
-  // ─── Three-Tier AI Pipeline Handler ──────────────────────────────────────
-  const handleRunThreeTierPipeline = useCallback(async () => {
-    if (!currentDocumentText) {
-      message.error('Tidak ada dokumen. Silakan upload dokumen terlebih dahulu.');
-      return;
-    }
-
-    setThreeTierActive(true);
-
-    try {
-      // Define target sections for distribution
-      const targetSections = [
-        { tab: 'penelitian', field: 'actors', label: 'Actors', key: 'actors' },
-        { tab: 'penelitian', field: 'useCases', label: 'Use Cases', key: 'useCases' },
-        { tab: 'kajian', field: 'kebutuhanFungsional', label: 'Kebutuhan Fungsional', key: 'kebutuhanFungsional' },
-        { tab: 'brd', field: 'asIsToBe', label: 'As-Is / To-Be', key: 'asIsToBe' },
-        { tab: 'fsd', field: 'processFlow', label: 'Process Flow', key: 'processFlow' },
-        { tab: 'fsd', field: 'useCaseDiagram', label: 'Use Case Diagram', key: 'useCaseDiagram' },
-        { tab: 'fsd', field: 'erd', label: 'ERD', key: 'erd' },
-      ];
-
-      // Progress callback
-      const onProgress = (data) => {
-        console.log('[Three-Tier Progress]', data);
-        // Emit event for monitor
-        window.dispatchEvent(new CustomEvent('threeTierProgress', { detail: data }));
-      };
-
-      // Run pipeline
-      const result = await threeTierOrchestrator.processThroughPipeline(
-        currentDocumentText,
-        targetSections,
-        onProgress
-      );
-
-      if (result.success) {
-        setThreeTierUsage(result.usage);
-
-        // Merge results into project
-        setProject(prev => {
-          let updated = { ...prev };
-
-          // Apply distributions to project
-          if (result.distributions) {
-            result.distributions.forEach(dist => {
-              if (dist.status === 'distributed') {
-                const { tab, field, data } = dist;
-                
-                if (tab === 'penelitian') {
-                  if (field === 'actors' || field === 'useCases') {
-                    updated[field] = Array.isArray(data) ? formatAIArray(data, field.substring(0, 3)) : data;
-                  }
-                } else if (tab === 'kajian') {
-                  if (field === 'kebutuhanFungsional') {
-                    updated[field] = Array.isArray(data) ? formatAIArray(data, 'kf') : data;
-                  }
-                } else if (tab === 'brd') {
-                  if (field === 'asIsToBe') {
-                    updated[field] = Array.isArray(data) ? data : [data];
-                  }
-                } else if (tab === 'fsd') {
-                  if (field.includes('Flow') || field.includes('Diagram') || field === 'erd') {
-                    updated.mermaid = {
-                      ...updated.mermaid,
-                      [field]: typeof data === 'string' ? cleanMermaid(data) : data
-                    };
-                  }
-                }
-              }
-            });
-          }
-
-          return updated;
-        });
-
-        message.success(`✅ Pipeline selesai: ${result.distributions.filter(d => d.status === 'distributed').length} seksi terisi`);
-        setFilledSections(prev => new Set([...prev, ...targetSections.map(s => s.key)]));
-      }
-    } catch (error) {
-      console.error('Three-Tier Pipeline Error:', error);
-      message.error(`Pipeline error: ${error.message}`);
-    } finally {
-      setThreeTierActive(false);
-    }
-  }, [currentDocumentText, threeTierOrchestrator, cleanMermaid]);
+  // ─── Three-Tier AI Pipeline Handler - DISABLED ────────────────────────────
+  // const handleRunThreeTierPipeline = useCallback(async () => {
+  //   if (!currentDocumentText) {
+  //     message.error('Tidak ada dokumen. Silakan upload dokumen terlebih dahulu.');
+  //     return;
+  //   }
+  //
+  //   setThreeTierActive(true);
+  //
+  //   try {
+  //     // Define target sections for distribution
+  //     const targetSections = [
+  //       { tab: 'penelitian', field: 'actors', label: 'Actors', key: 'actors' },
+  //       { tab: 'penelitian', field: 'useCases', label: 'Use Cases', key: 'useCases' },
+  //       { tab: 'kajian', field: 'kebutuhanFungsional', label: 'Kebutuhan Fungsional', key: 'kebutuhanFungsional' },
+  //       { tab: 'brd', field: 'asIsToBe', label: 'As-Is / To-Be', key: 'asIsToBe' },
+  //       { tab: 'fsd', field: 'processFlow', label: 'Process Flow', key: 'processFlow' },
+  //       { tab: 'fsd', field: 'useCaseDiagram', label: 'Use Case Diagram', key: 'useCaseDiagram' },
+  //       { tab: 'fsd', field: 'erd', label: 'ERD', key: 'erd' },
+  //     ];
+  //
+  //     // Progress callback
+  //     const onProgress = (data) => {
+  //       console.log('[Three-Tier Progress]', data);
+  //       // Emit event for monitor
+  //       window.dispatchEvent(new CustomEvent('threeTierProgress', { detail: data }));
+  //     };
+  //
+  //     // Run pipeline
+  //     const result = await threeTierOrchestrator.processThroughPipeline(
+  //       currentDocumentText,
+  //       targetSections,
+  //       onProgress
+  //     );
+  //
+  //     if (result.success) {
+  //       setThreeTierUsage(result.usage);
+  //
+  //       // Merge results into project
+  //       setProject(prev => {
+  //         let updated = { ...prev };
+  //
+  //         // Apply distributions to project
+  //         if (result.distributions) {
+  //           result.distributions.forEach(dist => {
+  //             if (dist.status === 'distributed') {
+  //               const { tab, field, data } = dist;
+  //               
+  //               if (tab === 'penelitian') {
+  //                 if (field === 'actors' || field === 'useCases') {
+  //                   updated[field] = Array.isArray(data) ? formatAIArray(data, field.substring(0, 3)) : data;
+  //                 }
+  //               } else if (tab === 'kajian') {
+  //                 if (field === 'kebutuhanFungsional') {
+  //                   updated[field] = Array.isArray(data) ? formatAIArray(data, 'kf') : data;
+  //                 }
+  //               } else if (tab === 'brd') {
+  //                 if (field === 'asIsToBe') {
+  //                   updated[field] = Array.isArray(data) ? data : [data];
+  //                 }
+  //               } else if (tab === 'fsd') {
+  //                 if (field.includes('Flow') || field.includes('Diagram') || field === 'erd') {
+  //                   updated.mermaid = {
+  //                     ...updated.mermaid,
+  //                     [field]: typeof data === 'string' ? cleanMermaid(data) : data
+  //                   };
+  //                 }
+  //               }
+  //             }
+  //           });
+  //         }
+  //
+  //         return updated;
+  //       });
+  //
+  //       message.success(`✅ Pipeline selesai: ${result.distributions.filter(d => d.status === 'distributed').length} seksi terisi`);
+  //       setFilledSections(prev => new Set([...prev, ...targetSections.map(s => s.key)]));
+  //     }
+  //   } catch (error) {
+  //     console.error('Three-Tier Pipeline Error:', error);
+  //     message.error(`Pipeline error: ${error.message}`);
+  //   } finally {
+  //     setThreeTierActive(false);
+  //   }
+  // }, [currentDocumentText, threeTierOrchestrator, cleanMermaid]);
 
   // ─── Upload status helpers ──────────────────────────────────────────────
   const statusLabel = {
@@ -871,31 +871,25 @@ export default function App() {
               </div>
             )}
 
-            {/* Three-Tier Pipeline Button */}
+            {/* Three-Tier Pipeline Button - TEMPORARILY DISABLED */}
+            {/* 
+              Note: Three-tier pipeline needs backend proxy for API calls.
+              Currently disabled due to CORS restrictions on direct browser API calls.
+              The existing aiProcessor infrastructure already handles multi-pass analysis efficiently.
+            
             {uploadStatus === STATUS.DONE && !isLoading && (
               <button
                 onClick={handleRunThreeTierPipeline}
-                disabled={threeTierActive}
+                disabled={true}
                 className="kt-btn kt-btn-secondary kt-btn-sm"
-                title="Jalankan 3-tier AI pipeline: Extract → Analyze → Distribute"
-                style={{
-                  opacity: threeTierActive ? 0.6 : 1,
-                  cursor: threeTierActive ? 'not-allowed' : 'pointer',
-                }}
+                title="3-tier pipeline (coming soon - needs backend proxy)"
+                style={{ opacity: 0.4, cursor: 'not-allowed' }}
               >
-                {threeTierActive ? (
-                  <>
-                    <Loader2 className="kt-spin" style={{ width: 13, height: 13 }} />
-                    Pipeline...
-                  </>
-                ) : (
-                  <>
-                    <Zap style={{ width: 14, height: 14 }} />
-                    3-Tier Pipeline
-                  </>
-                )}
+                <Zap style={{ width: 14, height: 14 }} />
+                Pipeline (WIP)
               </button>
             )}
+            */}
 
             {/* Export button */}
             <button
@@ -911,13 +905,15 @@ export default function App() {
         {/* ── PAGE CONTENT ────────────────────────────────────────────── */}
         <main style={{ flex: 1, padding: '28px', overflowY: 'auto' }}>
 
-          {/* Three-Tier Pipeline Monitor */}
+          {/* Three-Tier Pipeline Monitor - DISABLED (CORS issues) */}
+          {/* 
           {uploadStatus === STATUS.DONE && threeTierActive && (
             <ThreeTierPipelineMonitor 
               onProgress={true}
               isActive={threeTierActive}
             />
           )}
+          */}
 
           {/* Token Budget Monitor */}
           {showTokenMonitor && uploadStatus === STATUS.DONE && (
