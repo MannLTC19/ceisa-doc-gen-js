@@ -4,11 +4,13 @@ import {
   Users, Zap, Loader2, ChevronRight, Upload,
   X, CheckCircle2, AlertCircle, Cpu, Sparkles,
 } from 'lucide-react';
-import { ConfigProvider, theme as antdTheme, Modal } from 'antd';
+import { ConfigProvider, theme as antdTheme, Modal, message } from 'antd';
 
 import LandingPageV2 from './components/LandingPageV2.jsx';
 import AISimulation from './components/AISimulation.jsx';
 import TokenUsageDisplay from './components/TokenUsageDisplay.jsx';
+import TokenBudgetMonitor from './components/TokenBudgetMonitor.jsx';
+import SectionWithAIFill from './components/SectionWithAIFill.jsx';
 import { TabKajian }     from './components/TabKajian.jsx';
 import { TabPenelitian } from './components/TabPenelitian.jsx';
 import { TabBRD }        from './components/TabBRD.jsx';
@@ -27,6 +29,7 @@ import {
 import { processDocumentWithAI }   from './utils/aiProcessor.js';
 import { extractDocumentPages }    from './utils/fileHelpers.js';
 import { generateExcelDocument }   from './utils/excelGenerator.js';
+import { SectionAIGenerator, TokenBudgetTracker, SECTION_DEFINITIONS } from './utils/sectionAIFiller.js';
 import beaCukaiTheme from './theme/antdTheme.js';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -232,6 +235,18 @@ export default function App() {
   const [showLanding,  setShowLanding]  = useState(true);
   const [aiSimModal,   setAiSimModal]   = useState(false);
 
+  // ─── Section AI Filling State ────────────────────────────────────────────
+  const [currentDocumentText, setCurrentDocumentText] = useState('');
+  const [tokenBudget, setTokenBudget] = useState({
+    total: 0,
+    remaining: 1.0,
+    budgetCap: 1.0,
+    breakdown: {},
+  });
+  const [loadingSections, setLoadingSections] = useState(new Set());
+  const [filledSections, setFilledSections] = useState(new Set());
+  const [showTokenMonitor, setShowTokenMonitor] = useState(false);
+
   const isLoading = uploadStatus === STATUS.EXTRACTING || uploadStatus === STATUS.ANALYZING;
 
   // ─── Derived calculations ───────────────────────────────────────────────
@@ -301,6 +316,12 @@ export default function App() {
     setUploadedFile(null);
     setUploadStatus(STATUS.EXTRACTING);
 
+    // Reset token tracking for new document
+    setCurrentDocumentText('');
+    setTokenBudget({ total: 0, remaining: 1.0, budgetCap: 1.0, breakdown: {} });
+    setLoadingSections(new Set());
+    setFilledSections(new Set());
+
     try {
       // Step 1 — extract pages (page-aware)
       const extracted = await extractDocumentPages(file);
@@ -310,6 +331,9 @@ export default function App() {
       }
 
       console.log(`📄 Extracted ${extracted.parsedPages} pages (${extracted.totalPages} total) from "${file.name}"`);
+
+      // Store document text for section AI filling
+      setCurrentDocumentText(extracted.fullText);
 
       // Step 2 — two-pass AI analysis
       setUploadStatus(STATUS.ANALYZING);
@@ -413,6 +437,88 @@ export default function App() {
       setUploadedFile(null);
     }
   }, []);
+
+  // ─── Section AI Filling Handler ──────────────────────────────────────────
+  const handleFillSectionWithAI = useCallback(async (sectionKey) => {
+    if (!currentDocumentText) {
+      message.error('Tidak ada dokumen untuk dianalisis. Silakan upload dokumen terlebih dahulu.');
+      return;
+    }
+
+    const section = SECTION_DEFINITIONS[sectionKey];
+    if (!section) {
+      message.error(`Bagian tidak dikenal: ${sectionKey}`);
+      return;
+    }
+
+    // Check budget
+    const estimate = TokenBudgetTracker.estimateSectionCost(sectionKey);
+    if (tokenBudget.total + estimate.cost > tokenBudget.budgetCap) {
+      message.error(`Tidak bisa generate: akan melebihi budget $${tokenBudget.budgetCap}. Sisa budget: $${tokenBudget.remaining.toFixed(4)}`);
+      return;
+    }
+
+    // Set loading state
+    setLoadingSections(prev => new Set(prev).add(sectionKey));
+
+    try {
+      const result = await SectionAIGenerator.fillSection(
+        API_KEY,
+        sectionKey,
+        currentDocumentText,
+        (progress) => console.log(progress)
+      );
+
+      if (result.success) {
+        // Update project state with AI results
+        setProject(prev => {
+          const updated = { ...prev };
+          const field = section.parseField;
+
+          // Handle nested fields like mermaid.processFlow
+          if (field.includes('.')) {
+            const [parent, child] = field.split('.');
+            updated[parent] = { ...updated[parent], [child]: result.data };
+          } else {
+            // Handle array fields (actors, useCases, etc.)
+            if (Array.isArray(result.data)) {
+              updated[field] = formatAIArray(result.data, field.substring(0, 3));
+            } else {
+              updated[field] = result.data;
+            }
+          }
+
+          return updated;
+        });
+
+        // Update token budget
+        setTokenBudget(prev => ({
+          ...prev,
+          total: prev.total + result.cost.totalCost,
+          remaining: tokenBudget.budgetCap - (prev.total + result.cost.totalCost),
+          breakdown: {
+            ...prev.breakdown,
+            [sectionKey]: result.cost,
+          },
+        }));
+
+        // Mark as filled
+        setFilledSections(prev => new Set(prev).add(sectionKey));
+        message.success(`✅ ${section.label} berhasil di-generate`);
+      } else {
+        message.error(`Gagal generate ${section.label}`);
+      }
+    } catch (error) {
+      console.error(`Error filling ${sectionKey}:`, error);
+      message.error(`Error: ${error.message}`);
+    } finally {
+      setLoadingSections(prev => {
+        const updated = new Set(prev);
+        updated.delete(sectionKey);
+        return updated;
+      });
+    }
+  }, [currentDocumentText, API_KEY, tokenBudget.budgetCap, tokenBudget.total, tokenBudget.remaining]);
 
   // ─── Array CRUD helpers ─────────────────────────────────────────────────
   const handleUpdateArray = useCallback((name, id, field, value) => {
