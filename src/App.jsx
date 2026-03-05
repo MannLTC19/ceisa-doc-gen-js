@@ -10,7 +10,6 @@ import LandingPageV2 from './components/LandingPageV2.jsx';
 import TokenUsageDisplay from './components/TokenUsageDisplay.jsx';
 import TokenBudgetMonitor from './components/TokenBudgetMonitor.jsx';
 import AIModelMonitor from './components/AIModelMonitor.jsx';
-import ThreeTierPipelineMonitor from './components/ThreeTierPipelineMonitor.jsx';
 import SectionWithAIFill from './components/SectionWithAIFill.jsx';
 import { TabKajian }     from './components/TabKajian.jsx';
 import { TabPenelitian } from './components/TabPenelitian.jsx';
@@ -19,7 +18,6 @@ import { TabFSD }        from './components/TabFSD.jsx';
 import { TabCharter }    from './components/TabCharter.jsx';
 
 import { DualAICoordinator } from './utils/dualAIFiller';
-import ThreeTierPipelineOrchestrator from './utils/threeTierOrchestrator';
 
 import {
   ROLE_RATES_2023,
@@ -249,13 +247,6 @@ export default function App() {
   const [loadingSections, setLoadingSections] = useState(new Set());
   const [filledSections, setFilledSections] = useState(new Set());
   const [showTokenMonitor, setShowTokenMonitor] = useState(false);
-  
-  // ─── Three-Tier AI Pipeline State ─────────────────────────────────
-  const [threeTierOrchestrator, setThreeTierOrchestrator] = useState(
-    new ThreeTierPipelineOrchestrator(1.0)
-  );
-  const [threeTierUsage, setThreeTierUsage] = useState(null);
-  const [threeTierActive, setThreeTierActive] = useState(false);
 
   const isLoading = uploadStatus === STATUS.EXTRACTING || uploadStatus === STATUS.ANALYZING;
 
@@ -331,12 +322,6 @@ export default function App() {
     setTokenBudget({ total: 0, remaining: 1.0, budgetCap: 1.0, breakdown: {} });
     setLoadingSections(new Set());
     setFilledSections(new Set());
-    
-    // Reset three-tier orchestrator
-    const newOrchestrator = new ThreeTierPipelineOrchestrator(1.0);
-    setThreeTierOrchestrator(newOrchestrator);
-    setThreeTierUsage(null);
-    setThreeTierActive(false);
 
     try {
       // Step 1 — extract pages (page-aware)
@@ -553,90 +538,8 @@ export default function App() {
   }, []);
 
   // ─── Three-Tier AI Pipeline Handler - DISABLED ────────────────────────────
-  const handleRunThreeTierPipeline = useCallback(async () => {
-    if (!currentDocumentText) {
-      message.error('Tidak ada dokumen. Silakan upload dokumen terlebih dahulu.');
-      return;
-    }
-
-    setThreeTierActive(true);
-
-    try {
-      // Define target sections for distribution
-      const targetSections = [
-        { tab: 'penelitian', field: 'actors', label: 'Actors', key: 'actors' },
-        { tab: 'penelitian', field: 'useCases', label: 'Use Cases', key: 'useCases' },
-        { tab: 'kajian', field: 'kebutuhanFungsional', label: 'Kebutuhan Fungsional', key: 'kebutuhanFungsional' },
-        { tab: 'brd', field: 'asIsToBe', label: 'As-Is / To-Be', key: 'asIsToBe' },
-        { tab: 'fsd', field: 'processFlow', label: 'Process Flow', key: 'processFlow' },
-        { tab: 'fsd', field: 'useCaseDiagram', label: 'Use Case Diagram', key: 'useCaseDiagram' },
-        { tab: 'fsd', field: 'erd', label: 'ERD', key: 'erd' },
-      ];
-
-      // Progress callback
-      const onProgress = (data) => {
-        console.log('[Three-Tier Progress]', data);
-        // Emit event for monitor
-        window.dispatchEvent(new CustomEvent('threeTierProgress', { detail: data }));
-      };
-
-      // Run pipeline
-      const result = await threeTierOrchestrator.processThroughPipeline(
-        currentDocumentText,
-        targetSections,
-        onProgress
-      );
-
-      if (result.success) {
-        setThreeTierUsage(result.usage);
-
-        // Merge results into project
-        setProject(prev => {
-          let updated = { ...prev };
-
-          // Apply distributions to project
-          if (result.distributions) {
-            result.distributions.forEach(dist => {
-              if (dist.status === 'distributed') {
-                const { tab, field, data } = dist;
-                
-                if (tab === 'penelitian') {
-                  if (field === 'actors' || field === 'useCases') {
-                    updated[field] = Array.isArray(data) ? formatAIArray(data, field.substring(0, 3)) : data;
-                  }
-                } else if (tab === 'kajian') {
-                  if (field === 'kebutuhanFungsional') {
-                    updated[field] = Array.isArray(data) ? formatAIArray(data, 'kf') : data;
-                  }
-                } else if (tab === 'brd') {
-                  if (field === 'asIsToBe') {
-                    updated[field] = Array.isArray(data) ? data : [data];
-                  }
-                } else if (tab === 'fsd') {
-                  if (field.includes('Flow') || field.includes('Diagram') || field === 'erd') {
-                    updated.mermaid = {
-                      ...updated.mermaid,
-                      [field]: typeof data === 'string' ? cleanMermaid(data) : data
-                    };
-                  }
-                }
-              }
-            });
-          }
-
-          return updated;
-        });
-
-        message.success(`✅ Pipeline selesai: ${result.distributions.filter(d => d.status === 'distributed').length} seksi terisi`);
-        setFilledSections(prev => new Set([...prev, ...targetSections.map(s => s.key)]));
-      }
-    } catch (error) {
-      console.error('Three-Tier Pipeline Error:', error);
-      message.error(`Pipeline error: ${error.message}`);
-    } finally {
-      setThreeTierActive(false);
-    }
-  }, [currentDocumentText, threeTierOrchestrator, cleanMermaid]);
+  // Three-tier pipeline disabled due to proxy authentication limitations
+  // Dual AI system (aiProcessor.js) provides cost optimization & proven reliability
 
   // ─── Upload status helpers ──────────────────────────────────────────────
   const statusLabel = {
@@ -871,20 +774,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Three-Tier Pipeline Button */}
-            {uploadStatus === STATUS.DONE && !isLoading && (
-              <button
-                onClick={handleRunThreeTierPipeline}
-                disabled={threeTierActive}
-                className="kt-btn kt-btn-secondary kt-btn-sm"
-                title="3-tier pipeline (Extract → Analyze → Distribute)"
-                style={{ opacity: threeTierActive ? 0.5 : 1, cursor: threeTierActive ? 'not-allowed' : 'pointer' }}
-              >
-                <Zap style={{ width: 14, height: 14 }} />
-                Pipeline 3-Tier
-              </button>
-            )}
-
             {/* Export button */}
             <button
               onClick={() => generateExcelDocument(project, calc)}
@@ -898,14 +787,6 @@ export default function App() {
 
         {/* ── PAGE CONTENT ────────────────────────────────────────────── */}
         <main style={{ flex: 1, padding: '28px', overflowY: 'auto' }}>
-
-          {/* Three-Tier Pipeline Monitor */}
-          {uploadStatus === STATUS.DONE && threeTierActive && (
-            <ThreeTierPipelineMonitor 
-              onProgress={true}
-              isActive={threeTierActive}
-            />
-          )}
 
           {/* Token Budget Monitor */}
           {showTokenMonitor && uploadStatus === STATUS.DONE && (
