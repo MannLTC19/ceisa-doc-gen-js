@@ -257,10 +257,60 @@ const TRIAGE_SYSTEM_PROMPT = `Index page numbers ONLY. Minimal JSON.
 {"bg":[],"prob":[],"req":[],"act":[],"proc":[],"uc":[],"risk":[],"ppl":[],"bud":[],"time":[],"out":[]}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  DEEP ANALYSIS SYSTEM PROMPT  (Opus)
+//  DEEP ANALYSIS SYSTEM PROMPT - PRIORITY FOCUSED (Haiku)
+//
+//  PRIORITY FIELDS (80% of tokens focus):
+//  1. kebutuhanFungsional (BRD) - CRITICAL
+//  2. useCases + actors (Penelitian/UAW) - CRITICAL  
+//  3. mermaid.* diagrams (FSD) - HIGH
+//  4. asIsToBe (BRD) - HIGH
+//
+//  SECONDARY (20% tokens):
+//  - kebutuhanNonFungsional, risikoBisnis - basic coverage only
+//  - metadata (nama, pengampu) - minimal
 // ─────────────────────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `JSON extract. TIER 1 ONLY:
-{"nama","pengampu","unitPJ","kontakPIC","target","actors":[{"id","name","type":"GUI|API"}],"useCases":[{"id","name","trans":0}],"kebutuhanFungsional":[{"id","desc","prioritas":"M|H|L"}],"kebutuhanNonFungsional":[{"id","kategori":"Sec|Perf|Avail","desc"}],"risikoBisnis":[{"id","risk","level":"T|S|R"}],"asIsToBe":[{"id","factor","asIs","toBe"}]}`;
+const SYSTEM_PROMPT = `JSON extract. PRIORITY FOCUS: Kebutuhan Functional, Use Cases, Actors, Diagram, As-Is To-Be.
+
+CRITICAL (exhaustive):
+- kebutuhanFungsional: [{id, desc, prioritas:"M|H|L", owner, acceptance_criteria}] ≥15
+- useCases: [{id, name, transactions, actors, preconditions, postconditions, steps}] ≥10
+- actors: [{id, name, type:"GUI|API|Protocol", desc, role, interactions}] ≥8
+- mermaid.processFlow, mermaid.useCaseDiagram, mermaid.erd: detailed flows
+
+HIGH (thorough):
+- asIsToBe: [{id, factor, asIs, toBe, impact}] ≥8
+- kebutuhanNonFungsional: [{id, kategori:"Sec|Perf|Avail|Scalability", desc, target}] ≥5
+
+BASIC (metadata only):
+- nama, pengampu, unitPJ, kontakPIC, target
+- risikoBisnis: [{id, risk, level:"T|S|R"}] ≥3
+- detectedPeople: [] if mentioned
+
+MANDATORY JSON SCHEMA: {"kebutuhanFungsional","useCases","actors","mermaid","asIsToBe","kebutuhanNonFungsional","risikoBisnis","nama","pengampu","unitPJ","kontakPIC","target"}`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TOKEN ALLOCATION STRATEGY
+// ─────────────────────────────────────────────────────────────────────────────
+const TOKEN_ALLOCATION = {
+  CRITICAL: {
+    kebutuhanFungsional: { priority: 1, minChars: 3000, maxTokens: 1200, description: "Functional Requirements (BRD)" },
+    useCases:            { priority: 1, minChars: 2500, maxTokens: 1000, description: "Use Cases (Penelitian/UAW)" },
+    actors:              { priority: 1, minChars: 1500, maxTokens: 600,  description: "Actors & Workflows (UUCW)" },
+  },
+  HIGH: {
+    "mermaid.processFlow":    { priority: 2, minChars: 2000, maxTokens: 800, description: "Process Diagram (FSD)" },
+    "mermaid.useCaseDiagram": { priority: 2, minChars: 1500, maxTokens: 600, description: "Use Case Diagram" },
+    "mermaid.erd":            { priority: 2, minChars: 1500, maxTokens: 600, description: "Data Model Diagram" },
+    asIsToBe:                 { priority: 2, minChars: 1500, maxTokens: 600, description: "As-Is To-Be Mapping" },
+  },
+  MEDIUM: {
+    kebutuhanNonFungsional: { priority: 3, minChars: 800,  maxTokens: 300, description: "Non-Functional Requirements" },
+    risikoBisnis:           { priority: 3, minChars: 800,  maxTokens: 300, description: "Business Risks" },
+  },
+  BASIC: {
+    metadata: { priority: 4, minChars: 200, maxTokens: 100, description: "Project Metadata" },
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Shared Claude API caller
@@ -300,7 +350,12 @@ const callClaude = async (apiKey, { model, maxTokens, system, userMessage }) => 
     .join("\n");
 
   if (!text) throw new Error("Claude returned an empty response.");
-  return { text, usage: data.usage };
+  return { 
+    text, 
+    usage: data.usage,
+    model: model,
+    stop_reason: data.stop_reason  // track if truncated
+  };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -465,6 +520,45 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
 
     const parsed = parseAIResponse(analysis.text);
 
+    // ── Detailed token breakdown by field priority ─────────────────────────
+    const fieldTokenBreakdown = {};
+    
+    // CRITICAL fields (80% focus)
+    fieldTokenBreakdown['kebutuhanFungsional'] = Math.round(
+      (parsed.kebutuhanFungsional?.length || 0) * 50 + 200
+    );
+    fieldTokenBreakdown['useCases'] = Math.round(
+      (parsed.useCases?.length || 0) * 40 + 150
+    );
+    fieldTokenBreakdown['actors'] = Math.round(
+      (parsed.actors?.length || 0) * 30 + 100
+    );
+    fieldTokenBreakdown['mermaid.processFlow'] = Math.round(
+      (parsed.mermaid?.processFlow?.length || 0) / 20 + 100
+    );
+    fieldTokenBreakdown['mermaid.useCaseDiagram'] = Math.round(
+      (parsed.mermaid?.useCaseDiagram?.length || 0) / 20 + 80
+    );
+    fieldTokenBreakdown['asIsToBe'] = Math.round(
+      (parsed.asIsToBe?.length || 0) * 25 + 100
+    );
+    
+    // HIGH priority fields
+    fieldTokenBreakdown['kebutuhanNonFungsional'] = Math.round(
+      (parsed.kebutuhanNonFungsional?.length || 0) * 20 + 50
+    );
+    fieldTokenBreakdown['mermaid.erd'] = Math.round(
+      (parsed.mermaid?.erd?.length || 0) / 25 + 80
+    );
+    
+    // MEDIUM priority fields
+    fieldTokenBreakdown['risikoBisnis'] = Math.round(
+      (parsed.risikoBisnis?.length || 0) * 15 + 30
+    );
+    
+    // BASIC metadata (3% tokens)
+    fieldTokenBreakdown['metadata'] = 50;
+
     return {
       success:       true,
       data:          parsed,
@@ -477,6 +571,17 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
         analysis:     analysisUsage,
         input_tokens:  (triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0),
         output_tokens: (triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0),
+        total_tokens:  (triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0) + 
+                       (triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0),
+        fieldBreakdown: fieldTokenBreakdown,  // Per-field token allocation
+        costEstimate: {
+          haiku_input:  ((triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0)) * 0.80 / 1_000_000,
+          haiku_output: ((triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0)) * 4.0 / 1_000_000,
+          total_usd:    (
+            ((triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0)) * 0.80 +
+            ((triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0)) * 4.0
+          ) / 1_000_000,
+        }
       },
       log,
     };

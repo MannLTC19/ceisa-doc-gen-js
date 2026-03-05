@@ -8,6 +8,7 @@ import { ConfigProvider, theme as antdTheme, Modal } from 'antd';
 
 import LandingPageV2 from './components/LandingPageV2.jsx';
 import AISimulation from './components/AISimulation.jsx';
+import TokenUsageDisplay from './components/TokenUsageDisplay.jsx';
 import { TabKajian }     from './components/TabKajian.jsx';
 import { TabPenelitian } from './components/TabPenelitian.jsx';
 import { TabBRD }        from './components/TabBRD.jsx';
@@ -708,18 +709,29 @@ export default function App() {
 
           {/* AI usage info */}
           {uploadStatus === STATUS.DONE && aiMeta.usage && (
-            <div className="kt-notice" style={{ marginBottom: 20, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)' }}>
-              <Sparkles style={{ width: 16, height: 16, color: '#6366f1', flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: 12.5, color: '#4f46e5' }}>
-                Analisis selesai menggunakan <strong>{aiMeta.usedModel}</strong> — {(aiMeta.usage.input_tokens || 0).toLocaleString()} input token, {(aiMeta.usage.output_tokens || 0).toLocaleString()} output token.
-              </span>
-              <button
-                onClick={() => setUploadStatus(STATUS.IDLE)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', padding: 0, lineHeight: 1 }}
-              >
-                <X style={{ width: 14, height: 14 }} />
-              </button>
-            </div>
+            <>
+              <div className="kt-notice" style={{ marginBottom: 20, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', padding: '12px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles style={{ width: 16, height: 16, color: '#6366f1', flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 12.5, color: '#4f46e5' }}>
+                    Analisis selesai menggunakan <strong>{aiMeta.usedModel}</strong> — {(aiMeta.usage.input_tokens || 0).toLocaleString()} input token, {(aiMeta.usage.output_tokens || 0).toLocaleString()} output token.
+                  </span>
+                  <button
+                    onClick={() => { setUploadStatus(STATUS.IDLE); setAiMeta({ usedModel: null, usage: null, log: [] }); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', padding: 0, lineHeight: 1 }}
+                  >
+                    <X style={{ width: 14, height: 14 }} />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Detailed Token Usage Display */}
+              <TokenUsageDisplay 
+                usageData={aiMeta.usage}
+                maxBudgetUSD={0.01}
+                isLoading={false}
+              />
+            </>
           )}
 
           {/* Step indicator */}
