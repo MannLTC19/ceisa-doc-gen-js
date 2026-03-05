@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { ConfigProvider, theme as antdTheme, Modal } from 'antd';
 
-import LandingPage from './components/LandingPage.jsx';
+import LandingPageV2 from './components/LandingPageV2.jsx';
 import AISimulation from './components/AISimulation.jsx';
 import { TabKajian }     from './components/TabKajian.jsx';
 import { TabPenelitian } from './components/TabPenelitian.jsx';
@@ -442,11 +442,7 @@ export default function App() {
 
   // ─── Render ─────────────────────────────────────────────────────────────  // Show landing page if first visit
   if (showLanding) {
-    return (
-      <ConfigProvider theme={beaCukaiTheme}>
-        <LandingPage onEnter={() => setShowLanding(false)} />
-      </ConfigProvider>
-    );
+    return <LandingPageV2 onEnter={() => setShowLanding(false)} />;
   }
   return (
     <ConfigProvider theme={beaCukaiTheme}>
