@@ -799,6 +799,19 @@ export default function App() {
         {/* ── PAGE CONTENT ────────────────────────────────────────────── */}
         <main style={{ flex: 1, padding: '28px', overflowY: 'auto' }}>
 
+          {/* Token Budget Monitor */}
+          {showTokenMonitor && uploadStatus === STATUS.DONE && (
+            <TokenBudgetMonitor
+              totalCost={tokenBudget.total}
+              totalTokens={Object.values(tokenBudget.breakdown || {}).reduce((a, b) => a + (b || 0), 0)}
+              budgetCap={tokenBudget.budgetCap}
+              sectionBreakdown={tokenBudget.breakdown}
+              autoFillSections={['actors', 'useCases', 'kebutuhanFungsional', 'asIsToBe', 'processFlow', 'useCaseDiagram', 'erd']}
+              filledSections={filledSections}
+              showDetails={true}
+            />
+          )}
+
           {/* Error banner */}
           {uploadError && (
             <div className="kt-notice kt-notice-danger" style={{ marginBottom: 20 }}>
@@ -923,6 +936,10 @@ export default function App() {
                   handleUpdateArray={handleUpdateArray}
                   handleAddArray={handleAddArray}
                   handleRemoveArray={handleRemoveArray}
+                  tokenBudget={tokenBudget}
+                  loadingSections={loadingSections}
+                  filledSections={filledSections}
+                  handleFillSectionWithAI={handleFillSectionWithAI}
                 />
               )}
               {activeTab === 'penelitian' && (
@@ -931,6 +948,10 @@ export default function App() {
                   handleUpdateArray={handleUpdateArray}
                   handleAddArray={handleAddArray}
                   handleRemoveArray={handleRemoveArray}
+                  tokenBudget={tokenBudget}
+                  loadingSections={loadingSections}
+                  filledSections={filledSections}
+                  handleFillSectionWithAI={handleFillSectionWithAI}
                 />
               )}
               {activeTab === 'brd' && (
@@ -940,6 +961,10 @@ export default function App() {
                   handleUpdateArray={handleUpdateArray}
                   handleAddArray={handleAddArray}
                   handleRemoveArray={handleRemoveArray}
+                  tokenBudget={tokenBudget}
+                  loadingSections={loadingSections}
+                  filledSections={filledSections}
+                  handleFillSectionWithAI={handleFillSectionWithAI}
                 />
               )}
               {activeTab === 'fsd' && (
@@ -949,10 +974,20 @@ export default function App() {
                   handleUpdateArray={handleUpdateArray}
                   handleAddArray={handleAddArray}
                   handleRemoveArray={handleRemoveArray}
+                  tokenBudget={tokenBudget}
+                  loadingSections={loadingSections}
+                  filledSections={filledSections}
+                  handleFillSectionWithAI={handleFillSectionWithAI}
                 />
               )}
               {activeTab === 'charter' && (
-                <TabCharter project={project} setProject={setProject} calc={calc} />
+                <TabCharter
+                  project={project} setProject={setProject} calc={calc}
+                  tokenBudget={tokenBudget}
+                  loadingSections={loadingSections}
+                  filledSections={filledSections}
+                  handleFillSectionWithAI={handleFillSectionWithAI}
+                />
               )}
             </div>
           )}

@@ -4,6 +4,9 @@ import {
     TrendingUp, Clock, Briefcase, Lock
 } from 'lucide-react';
 import FileUploadWithOCR from './FileUploadWithOCR';
+import SectionWithAIFill from './SectionWithAIFill';
+import AIFillButton from './AIFillButton';
+import { SECTION_DEFINITIONS, TokenBudgetTracker } from '../utils/sectionAIFiller.js';
 
 import { 
     formatIDR, getUseCaseComplexity, getActorComplexity, 
@@ -11,7 +14,8 @@ import {
 } from '../constants.js';
 
 export const TabPenelitian = ({ 
-    project, setProject, calc, handleUpdateArray, handleAddArray, handleRemoveArray 
+    project, setProject, calc, handleUpdateArray, handleAddArray, handleRemoveArray,
+    tokenBudget, loadingSections, filledSections, handleFillSectionWithAI
 }) => {
 
   // Logic: Handle updating Business Value and Effort Selectors
@@ -38,12 +42,22 @@ export const TabPenelitian = ({
         </div>
 
         {/* ── 1. SPESIFIKASI AKTOR (UAW) ──────────────────────────────────── */}
-        <div className="kt-card">
-            <div className="kt-card-header">
-                 <h3 className="kt-card-title">
-                     <User />
-                     1. Spesifikasi Aktor (UAW)
-                 </h3>
+        <SectionWithAIFill
+          sectionKey="actors"
+          title="1. Spesifikasi Aktor (UAW)"
+          icon={User}
+          estimatedTokens={SECTION_DEFINITIONS.actors?.estimatedTokens || 350}
+          priority="critical"
+          autoFill={true}
+          currentCost={tokenBudget?.breakdown?.actors || 0}
+          budgetCap={tokenBudget?.budgetCap || 1.0}
+          isLoading={loadingSections?.has('actors')}
+          isCompleted={filledSections?.has('actors')}
+          onFill={() => handleFillSectionWithAI('actors')}
+          disabled={false}
+        >
+          <div className="kt-card">
+            <div className="kt-card-header" style={{ marginTop: '-1px' }}>
                  <button 
                     onClick={() => handleAddArray('actors', {id: Date.now(), name: 'Aktor Baru', type: 'GUI', desc: ''})} 
                     className="kt-btn kt-btn-primary kt-btn-sm"
@@ -122,15 +136,26 @@ export const TabPenelitian = ({
                     </tbody>
                 </table>
             </div>
-        </div>
+          </div>
+        </SectionWithAIFill>
 
         {/* ── 2. USE CASE (UUCW) ──────────────────────────────────────────── */}
-        <div className="kt-card">
-            <div className="kt-card-header">
-                 <h3 className="kt-card-title">
-                     <Calculator />
-                     2. Use Case Deskripsi (UUCW)
-                 </h3>
+        <SectionWithAIFill
+          sectionKey="useCases"
+          title="2. Use Case Deskripsi (UUCW)"
+          icon={Calculator}
+          estimatedTokens={SECTION_DEFINITIONS.useCases?.estimatedTokens || 350}
+          priority="critical"
+          autoFill={true}
+          currentCost={tokenBudget?.breakdown?.useCases || 0}
+          budgetCap={tokenBudget?.budgetCap || 1.0}
+          isLoading={loadingSections?.has('useCases')}
+          isCompleted={filledSections?.has('useCases')}
+          onFill={() => handleFillSectionWithAI('useCases')}
+          disabled={false}
+        >
+          <div className="kt-card">
+            <div className="kt-card-header" style={{ marginTop: '-1px' }}>
                  <button 
                     onClick={() => handleAddArray('useCases', {id: `uc_${Date.now()}`, subSystem: 'New Sub', name: 'Fitur Baru', transactions: 1})} 
                     className="kt-btn kt-btn-primary kt-btn-sm"
@@ -205,7 +230,8 @@ export const TabPenelitian = ({
                     </tbody>
                 </table>
             </div>
-        </div>
+          </div>
+        </SectionWithAIFill>
 
         {/* ── 3. PARAMETER PENILAIAN (TCF & EF) ──────────────────────────── */}
         <div className="kt-card">

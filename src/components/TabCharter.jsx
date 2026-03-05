@@ -1,8 +1,11 @@
 import React from 'react';
 import { Flag, Calendar, Users, AlertTriangle, Target, User } from 'lucide-react';
 import FileUploadWithOCR from './FileUploadWithOCR';
+import SectionWithAIFill from './SectionWithAIFill';
+import AIFillButton from './AIFillButton';
+import { SECTION_DEFINITIONS, TokenBudgetTracker } from '../utils/sectionAIFiller.js';
 
-export const TabCharter = ({ project, setProject, calc }) => {
+export const TabCharter = ({ project, setProject, calc, tokenBudget, loadingSections, filledSections, handleFillSectionWithAI }) => {
 
   // Logic: Safe updates for the Charter object
   const handleUpdateCharter = (field, value) => {

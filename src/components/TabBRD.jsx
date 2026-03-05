@@ -4,13 +4,17 @@ import {
     User, GitGraph, Calendar, GitCompare 
 } from 'lucide-react';
 import FileUploadWithOCR from './FileUploadWithOCR';
+import SectionWithAIFill from './SectionWithAIFill';
+import AIFillButton from './AIFillButton';
+import { SECTION_DEFINITIONS, TokenBudgetTracker } from '../utils/sectionAIFiller.js';
 
 import { 
     getActorComplexity, getUseCaseComplexity 
 } from '../constants';
 
 export const TabBRD = ({ 
-    project, setProject, uploadedFile, calc, handleUpdateArray, handleAddArray, handleRemoveArray 
+    project, setProject, uploadedFile, calc, handleUpdateArray, handleAddArray, handleRemoveArray,
+    tokenBudget, loadingSections, filledSections, handleFillSectionWithAI
 }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="kt-fade-in">
@@ -86,11 +90,22 @@ export const TabBRD = ({
         </div>
 
         {/* ── 2. KONDISI AS-IS TO-BE ──────────────────────────────────────── */}
-        <div className="kt-card">
-            <div className="kt-card-header">
-                 <h3 className="kt-card-title">
-                    <GitCompare /> 2. Kondisi As-Is To-Be
-                 </h3>
+        <SectionWithAIFill
+          sectionKey="asIsToBe"
+          title="2. Kondisi As-Is To-Be"
+          icon={GitCompare}
+          estimatedTokens={SECTION_DEFINITIONS.asIsToBe?.estimatedTokens || 200}
+          priority="critical"
+          autoFill={true}
+          currentCost={tokenBudget?.breakdown?.asIsToBe || 0}
+          budgetCap={tokenBudget?.budgetCap || 1.0}
+          isLoading={loadingSections?.has('asIsToBe')}
+          isCompleted={filledSections?.has('asIsToBe')}
+          onFill={() => handleFillSectionWithAI('asIsToBe')}
+          disabled={false}
+        >
+          <div className="kt-card">
+            <div className="kt-card-header" style={{ marginTop: '-1px' }}>
                  <button 
                     onClick={() => handleAddArray('asIsToBe', {id: Date.now().toString(), factor: '', asIs: '', toBe: ''})} 
                     className="kt-btn kt-btn-primary kt-btn-sm"
@@ -158,7 +173,8 @@ export const TabBRD = ({
                     </tbody>
                 </table>
             </div>
-        </div>
+          </div>
+        </SectionWithAIFill>
 
         {/* ── 3. KEBUTUHAN FUNGSIONAL (READ ONLY) ─────────────────────────── */}
         <div className="kt-card">

@@ -4,10 +4,14 @@ import {
   CheckSquare, Plus, Trash2, Network, CheckCircle2,
 } from 'lucide-react';
 import FileUploadWithOCR from './FileUploadWithOCR';
+import SectionWithAIFill from './SectionWithAIFill';
+import AIFillButton from './AIFillButton';
+import { SECTION_DEFINITIONS, TokenBudgetTracker } from '../utils/sectionAIFiller.js';
 
 export const TabKajian = ({
   project, setProject, uploadedFile, aiMeta,
   handleUpdateArray, handleAddArray, handleRemoveArray,
+  tokenBudget, loadingSections, filledSections, handleFillSectionWithAI,
 }) => {
 
   const biaConfig = {

@@ -7,6 +7,9 @@ import {
     Maximize, X, ZoomIn, ZoomOut
 } from 'lucide-react';
 import FileUploadWithOCR from './FileUploadWithOCR';
+import SectionWithAIFill from './SectionWithAIFill';
+import AIFillButton from './AIFillButton';
+import { SECTION_DEFINITIONS, TokenBudgetTracker } from '../utils/sectionAIFiller.js';
 
 // ─── MERMAID INIT (module-level, runs once) ──────────────────────────────
 mermaid.initialize({ 
@@ -184,7 +187,8 @@ const MermaidViewer = ({ code, onChange, title }) => {
 
 // ─── TAB FSD ─────────────────────────────────────────────────────────────
 export const TabFSD = ({ 
-    project, setProject, uploadedFile, handleUpdateArray, handleAddArray, handleRemoveArray 
+    project, setProject, uploadedFile, handleUpdateArray, handleAddArray, handleRemoveArray,
+    tokenBudget, loadingSections, filledSections, handleFillSectionWithAI
 }) => {
 
     // Logic: Safe updates to Mermaid structure
@@ -228,12 +232,21 @@ export const TabFSD = ({
             </div>
 
             {/* ── 1. BPMN ─────────────────────────────────────────────────────── */}
-            <div className="kt-card">
-                <div className="kt-card-header">
-                    <h3 className="kt-card-title">
-                        <Workflow /> 1. Diagram Alur Proses Bisnis (BPMN)
-                    </h3>
-                </div>
+            <SectionWithAIFill
+              sectionKey="processFlow"
+              title="1. Diagram Alur Proses Bisnis (BPMN)"
+              icon={Workflow}
+              estimatedTokens={SECTION_DEFINITIONS.processFlow?.estimatedTokens || 150}
+              priority="critical"
+              autoFill={true}
+              currentCost={tokenBudget?.breakdown?.processFlow || 0}
+              budgetCap={tokenBudget?.budgetCap || 1.0}
+              isLoading={loadingSections?.has('processFlow')}
+              isCompleted={filledSections?.has('processFlow')}
+              onFill={() => handleFillSectionWithAI('processFlow')}
+              disabled={false}
+            >
+              <div className="kt-card">
                 <div className="kt-card-body">
                     <FileUploadWithOCR
                         label="📄 Unggah Dokumen Alur Proses"
@@ -249,15 +262,25 @@ export const TabFSD = ({
                         onChange={val => updateMermaid('processFlow', val)} 
                     />
                 </div>
-            </div>
+              </div>
+            </SectionWithAIFill>
 
             {/* ── 2. USE CASE ─────────────────────────────────────────────────── */}
-            <div className="kt-card">
-                <div className="kt-card-header">
-                    <h3 className="kt-card-title">
-                        <GitBranch /> 2. Use Case Diagram
-                    </h3>
-                </div>
+            <SectionWithAIFill
+              sectionKey="useCaseDiagram"
+              title="2. Use Case Diagram"
+              icon={GitBranch}
+              estimatedTokens={SECTION_DEFINITIONS.useCaseDiagram?.estimatedTokens || 100}
+              priority="critical"
+              autoFill={true}
+              currentCost={tokenBudget?.breakdown?.useCaseDiagram || 0}
+              budgetCap={tokenBudget?.budgetCap || 1.0}
+              isLoading={loadingSections?.has('useCaseDiagram')}
+              isCompleted={filledSections?.has('useCaseDiagram')}
+              onFill={() => handleFillSectionWithAI('useCaseDiagram')}
+              disabled={false}
+            >
+              <div className="kt-card">
                 <div className="kt-card-body">
                     <MermaidViewer 
                         title="System Use Case Diagram" 
@@ -265,15 +288,25 @@ export const TabFSD = ({
                         onChange={val => updateMermaid('useCaseDiagram', val)} 
                     />
                 </div>
-            </div>
+              </div>
+            </SectionWithAIFill>
 
             {/* ── 3. ERD ──────────────────────────────────────────────────────── */}
-            <div className="kt-card">
-                <div className="kt-card-header">
-                    <h3 className="kt-card-title">
-                        <Database /> 3. Data Model / ERD
-                    </h3>
-                </div>
+            <SectionWithAIFill
+              sectionKey="erd"
+              title="3. Data Model / ERD"
+              icon={Database}
+              estimatedTokens={SECTION_DEFINITIONS.erd?.estimatedTokens || 80}
+              priority="critical"
+              autoFill={true}
+              currentCost={tokenBudget?.breakdown?.erd || 0}
+              budgetCap={tokenBudget?.budgetCap || 1.0}
+              isLoading={loadingSections?.has('erd')}
+              isCompleted={filledSections?.has('erd')}
+              onFill={() => handleFillSectionWithAI('erd')}
+              disabled={false}
+            >
+              <div className="kt-card">
                 <div className="kt-card-body">
                     <MermaidViewer 
                         title="Entity Relationship Diagram (ERD)" 
@@ -281,7 +314,8 @@ export const TabFSD = ({
                         onChange={val => updateMermaid('erd', val)} 
                     />
                 </div>
-            </div>
+              </div>
+            </SectionWithAIFill>
 
             {/* ── 4 & 5. MOCKUP & RIGHTS ──────────────────────────────────────── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
