@@ -1,0 +1,1082 @@
+================================================================================
+CEISA DOC GEN - SYSTEM ENGINEERING PROMPT
+Document Generator untuk Bea Cukai Indonesia
+================================================================================
+Tanggal: March 5, 2026
+Version: 7.0 claude opus
+Framework: React 19.2.0 + Vite 7.3.1 + Ant Design v5.x
+
+================================================================================
+RINGKASAN APLIKASI
+================================================================================
+
+Aplikasi ini adalah "Document Generator" yang membantu tim Bea Cukai Indonesia 
+(khususnya IKC PSI) dalam membuat dokumentasi proyek secara terstruktur dan otomatis.
+
+TUJUAN UTAMA:
+- Mempermudah pembuatan dokumentasi teknis proyek
+- Mengintegrasikan OCR untuk membaca dokumen scan/PDF secara otomatis
+- Mengorganisir informasi proyek dalam format standar internasional
+- Mengekspor hasil dokumentasi ke berbagai format (Excel, PDF, DOCX)
+- Menerapkan standar Bea Cukai dengan visual branding yang konsisten
+
+TARGET PENGGUNA:
+- Project Manager di Bea Cukai
+- Business Analyst
+- System Architect
+- Technical Writer
+- Stakeholder sektor pemerintah Indonesia
+
+================================================================================
+ARSITEKTUR APLIKASI TINGKAT TINGGI
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────┐
+│  BROWSER / FRONTEND (React 19.2.0 + Vite)                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ App.jsx (Main Layout Container)                          │   │
+│  │ - ConfigProvider (Ant Design Theme: Bea Cukai Branding) │   │
+│  │ - Sidebar Navigation (5 Tabs)                            │   │
+│  │ - Top Bar (Logo, Title)                                  │   │
+│  │ - Main Content Area                                      │   │
+│  │ - Footer (Export, Save, Help)                            │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          │                                       │
+│         ┌────────────────┼────────────────┐                      │
+│         ▼                ▼                ▼                      │
+│    ┌─────────┐      ┌─────────┐      ┌─────────┐                │
+│    │ TabKajian    │ TabBRD       │ TabFSD        │                │
+│    │ Kajian   │  │ Business │  │ Functional│                │
+│    │ Kebutuhan    │ Requirement  │ Specification │                │
+│    └─────────┘      └─────────┘      └─────────┘                │
+│         │                ▼                ▼                      │
+│    ┌─────────┐      ┌─────────────┐ ┌──────────┐                │
+│    │TabCharter    │ TabPenelitian │                               │
+│    │Project   │  │ Research     │                               │
+│    │Charter       │ /UCP (Actors)│                               │
+│    └─────────┘      └─────────────┘                               │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ FileUploadWithOCR Component (Distributed in All Tabs)   │   │
+│  │ - Drag & Drop File Upload                               │   │
+│  │ - OCR Processing (Tesseract.js)                         │   │
+│  │ - Quality Score Detection                               │   │
+│  │ - Auto-fill Form Fields                                 │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          │                                       │
+│         ┌────────────────┴───────────────┬──────────────┐        │
+│         ▼                                ▼              ▼        │
+│    ┌─────────────────┐  ┌──────────────┐  ┌────────────┐        │
+│    │ OCR Processor   │  │ File Helpers │  │ Doc Builder │       │
+│    │ (Tesseract.js)  │  │ (PdfJS, etc) │  │ (Export)   │        │
+│    └─────────────────┘  └──────────────┘  └────────────┘        │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Ant Design Theme System                                  │   │
+│  │ - antdTheme.js (Token Configuration)                     │   │
+│  │ - antd-custom.css (Custom Overrides)                     │   │
+│  │ - AntdComponents.jsx (Pre-built Component Library)       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+        │
+        │ HTTP (localhost:5173)
+        │
+    ┌───┴────────────────────────────────────────────┐
+    │                                                 │
+    ▼                                                 ▼
+[Node.js Dev Server]                         [Browser Storage]
+[Vite HMR]                                  [LocalStorage/State]
+
+
+================================================================================
+KOMPONEN UTAMA DAN FUNGSINYA
+================================================================================
+
+1. CORE COMPONENTS (Frontend React)
+──────────────────────────────────────
+
+App.jsx (848 lines)
+├─ Fungsi: Main layout container dengan 5 tabs utama
+├─ Struktur HTML: Flex layout (sidebar + main area)
+├─ State Management: 
+│   ├─ projectData: Object besar menyimpan semua form fields
+│   ├─ selectedTab: String, track tab mana yang aktif
+│   ├─ fileContents: Object, store hasil upload/OCR
+│   └─ Callback handlers untuk update/add/remove array items
+├─ Features:
+│   ├─ ConfigProvider wrapper untuk Ant Design theming
+│   ├─ File upload handling
+│   ├─ Dynamic form field management
+│   ├─ Excel export capability
+│   └─ Print/Save functionality
+└─ Dependencies:
+    ├─ React
+    ├─ Ant Design (antd)
+    ├─ beaCukaiTheme dari src/theme/antdTheme.js
+    └─ Component tab files (TabKajian.jsx, TabBRD.jsx, etc.)
+
+
+TabKajian.jsx
+├─ Fungsi: Tab "Kajian Kebutuhan" - Project Background & Analysis
+├─ Fields utama:
+│   ├─ Latar Belakang (Background) - TextArea dengan FileUploadWithOCR
+│   ├─ Tujuan Proyek (Project Goals)
+│   ├─ Scope Kebutuhan (Requirement Scope)
+│   ├─ Peluang Bisnis (Business Opportunities)
+│   ├─ Risiko (Risks)
+│   ├─ Benefit/Value yang akan diperoleh
+│   └─ Ruang Lingkup (Boundaries)
+├─ Data Flow: 
+│   Form input → onChange handlers → projectData state di App.jsx
+├─ OCR Integration:
+│   User upload dokumen → FileUploadWithOCR processes → extract text → auto-fill Latar Belakang
+└─ Output: Struktur data untuk section "Kajian Kebutuhan" di Excel export
+
+
+TabBRD.jsx
+├─ Fungsi: Tab "BRD" - Business Requirements Detail
+├─ Fields utama:
+│   ├─ Proses Bisnis (Business Process) - dengan FileUploadWithOCR
+│   ├─ Modul (Modules)
+│   ├─ Fitur (Features) - dynamic array
+│   ├─ Use Cases - dynamic array
+│   ├─ Data Requirements
+│   ├─ Business Rules
+│   └─ Performance Requirements
+├─ Data Flow:
+│   Dynamic array handling untuk add/remove modul dan fitur
+├─ OCR Integration:
+│   Upload process flow doc → extract → populate Proses Bisnis field
+└─ Output: Detailed business requirements untuk dokumentasi resmi
+
+
+TabFSD.jsx
+├─ Fungsi: Tab "FSD" - Functional Specifications Detail
+├─ Fields utama:
+│   ├─ BPMN Diagram/Flow (dengan FileUploadWithOCR)
+│   ├─ Technical Stack
+│   ├─ Architecture Diagram
+│   ├─ Components/Modules
+│   ├─ Interfaces & APIs
+│   ├─ Data Flow Description
+│   └─ System Requirements
+├─ OCR Integration:
+│   Upload technical docs/diagrams → extract flow info
+└─ Output: Functional specification untuk development team
+
+
+TabCharter.jsx
+├─ Fungsi: Tab "Project Charter" - Project Governance
+├─ Fields utama:
+│   ├─ Scope Proyek (dengan FileUploadWithOCR)
+│   ├─ Timeline/Jadwal (Timeline)
+│   ├─ Budget
+│   ├─ Resource Allocation
+│   ├─ Success Criteria
+│   ├─ Stakeholders
+│   └─ Authority & Approvals
+├─ OCR Integration:
+│   Upload charter doc → extract scope info
+└─ Output: Project charter document untuk stakeholder management
+
+
+TabPenelitian.jsx
+├─ Fungsi: Tab "Penelitian/UCP" - User & Actor Analysis
+├─ Fields utama:
+│   ├─ Aktor (dengan FileUploadWithOCR)
+│   ├─ User Classes
+│   ├─ Use Case Scenarios
+│   ├─ User Journey
+│   ├─ Accessibility Requirements
+│   └─ Training Needs
+├─ Data Structure:
+│   Actors array dengan: name, role, responsibilities, interactions
+├─ OCR Integration:
+│   Upload actor doc → auto-populate actor list
+└─ Output: User research dan actor definition untuk stakeholder alignment
+
+
+FileUploadWithOCR.jsx
+├─ Fungsi: Reusable component untuk upload file dengan OCR processing
+├─ Fitur:
+│   ├─ Drag & drop zone
+│   ├─ Click to browse
+│   ├─ Progress bar real-time
+│   ├─ Quality score display (0-100)
+│   ├─ Extraction method indicator (native/OCR/fallback)
+│   ├─ File metadata (size, type, timestamp)
+│   ├─ Error handling & retry capability
+│   └─ Callback props untuk auto-fill form field
+├─ Props:
+│   - onTextExtracted(text): Callback ketika teks berhasil diextract
+│   - label: String, nama field
+│   - acceptedFormats: Array, file types yang diterima
+│   - maxFileSize: Number, max file size in MB
+├─ Processing Pipeline:
+│   └─ File → Detect Type → Try Native Extraction → 
+│      Quality Check → If Low → Fallback OCR → Return Text
+└─ Dependencies: ocrIntegration.js, ocrProcessor.js, Lucide icons
+
+
+2. UTILITY MODULES (Non-UI Logic)
+──────────────────────────────────
+
+src/utils/ocrProcessor.js
+├─ Fungsi: Core OCR engine menggunakan Tesseract.js
+├─ Exports:
+│   ├─ initializeOCRWorker(): void
+│   │   └─ Lazy load Tesseract OCR worker (sekali saja)
+│   ├─ extractTextFromImage(imageFile): Promise<{text, confidence}>
+│   │   └─ Read image dengan OCR
+│   ├─ extractTextFromPDF(pdfFile): Promise<{text, pages}>
+│   │   └─ Render setiap page PDF ke canvas → OCR pada setiap page
+│   ├─ cleanOCRText(dirtyText): string
+│   │   └─ Post-process untuk improve quality
+│   └─ terminateOCRWorker(): void
+│       └─ Cleanup memory
+├─ Dependencies:
+│   └─ tesseract.js (npm package)
+├─ Performance:
+│   └─ Worker thread, non-blocking
+└─ Supported Languages: Indonesian (ind), English (eng)
+
+
+src/utils/ocrIntegration.js
+├─ Fungsi: Smart wrapper dengan quality detection & fallback logic
+├─ Exports:
+│   ├─ extractDocumentWithOCR(file, options): Promise<{text, quality, method, confidence}>
+│   │   └─ Main function dengan intelligent fallback
+│   ├─ assessTextQuality(text): number (0-100)
+│   │   └─ Score berdasarkan: whitespace density, alphanumeric ratio, corruption
+│   ├─ batchExtractWithOCR(files, onProgress): Promise<array>
+│   │   └─ Process multiple files dengan progress callback
+│   └─ getRecommendedOCRConfig(file): object
+│       └─ Auto-detect optimal settings berdasarkan file characteristics
+├─ Quality Scoring Algorithm:
+│   └─ Evaluasi: 
+│       ├─ Whitespace density (30%)
+│       ├─ Alphanumeric ratio (40%)
+│       ├─ Character corruption detection (20%)
+│       └─ Length validation (10%)
+├─ Fallback Strategy:
+│   └─ Try Native → If quality < 50 → Use OCR → If OCR fails → Return raw
+└─ Use Case:
+    └─ Detect kalau native PDF extraction jelek → auto trigger OCR
+
+
+src/utils/fileHelpers.js
+├─ Fungsi: Unified document extraction handler
+├─ Exports:
+│   ├─ extractDocumentPages(file): Promise<array>
+│   │   └─ Auto-detect file type & delegate ke extractor yang tepat
+│   ├─ extractPagesFromPdf(file): Promise<array>
+│   │   └─ Gunakan pdfjs-dist untuk parse PDF
+│   ├─ extractPagesFromDocx(file): Promise<array>
+│   │   └─ Gunakan mammoth library untuk parse DOCX
+│   ├─ extractPagesFromImage(file): Promise<array>
+│   │   └─ Delegate ke ocrProcessor untuk gambar
+│   └─ detectFileType(file): string
+│       └─ MIME type detection
+├─ Supported Formats:
+│   ├─ PDF (.pdf)
+│   ├─ Word (.docx)
+│   ├─ Excel (.xlsx)
+│   ├─ Images (.png, .jpg, .jpeg, .gif, .webp)
+│   ├─ Plain text (.txt)
+│   └─ Dapat di-extend untuk format lain
+└─ Dependencies:
+    ├─ pdfjs-dist (PDF parsing)
+    ├─ mammoth (DOCX parsing)
+    └─ ocrProcessor.js (Image OCR)
+
+
+src/utils/docGenerator.js
+├─ Fungsi: Generate document dari projectData
+├─ Exports:
+│   ├─ generateProjectSummary(projectData): string
+│   ├─ generateRequirementDocument(projectData): string
+│   ├─ generateFunctionalSpec(projectData): string
+│   ├─ formatDocumentForExport(doc, format): string
+│   └─ validateRequiredFields(projectData): {valid, missingFields}
+├─ Output Formats:
+│   └─ Plain text, Markdown, HTML (untuk sebelum export)
+└─ Use Case:
+    └─ Generate preview sebelum export ke Excel/PDF
+
+
+src/utils/excelGenerator.js
+├─ Fungsi: Export projectData ke Excel file
+├─ Exports:
+│   ├─ generateExcelDocument(projectData, filename): File
+│   │   └─ Create Excel dengan multiple sheets
+│   ├─ addProjectOverview(worksheet, projectData): void
+│   ├─ addRequirementsSheet(worksheet, projectData): void
+│   └─ downloadExcel(excelFile): void
+│       └─ Trigger browser download
+├─ Excel Structure:
+│   └─ Multiple sheets:
+│       ├─ Overview (Project summary)
+│       ├─ Kajian (Background & Analysis)
+│       ├─ BRD (Business Requirements)
+│       ├─ FSD (Functional Specifications)
+│       ├─ Charter (Project Charter)
+│       ├─ Penelitian (Research/Actors)
+│       └─ References (Links, notes)
+├─ Features:
+│   ├─ Styling (headers bold, colors)
+│   ├─ Column width auto-adjust
+│   ├─ Date formatting
+│   └─ Merged cells untuk section headers
+└─ Dependencies:
+    └─ xlsx library (tercakup via npm)
+
+
+src/constants.js
+├─ Fungsi: Global constants dan configurations
+├─ Contents:
+│   ├─ PROJECT_CATEGORIES: Array kategori proyek
+│   ├─ RISK_LEVELS: Low, Medium, High, Critical
+│   ├─ PRIORITY_LEVELS: Low, Medium, High, Critical
+│   ├─ STATUS_OPTIONS: Draft, In Review, Approved, Published
+│   ├─ STAKEHOLDER_ROLES: PM, BA, Architect, Developer, QA, etc.
+│   ├─ MODULE_TYPES: Web, Mobile, Backend, Database, Integration
+│   ├─ FEATURE_TYPES: Feature, Enhancement, Bug Fix, Technical Debt
+│   └─ USE_CASE_STATUSES: New, Enhancement, Refactor, Deprecate
+└─ Usage:
+    └─ Dropdown options, validasi, standardisasi naming
+
+
+3. THEME & STYLING
+──────────────────
+
+src/theme/antdTheme.js
+├─ Fungsi: Centralized Ant Design v5+ theme configuration
+├─ Structure:
+│   ├─ token: CSS-in-JS tokens untuk global styling
+│   │   ├─ Color tokens:
+│   │   │   ├─ colorPrimary: '#1A428B' (Bea Cukai blue)
+│   │   │   ├─ colorSuccess: '#22C55E' (Green)
+│   │   │   ├─ colorWarning: '#F59E0B' (Orange)
+│   │   │   ├─ colorError: '#EF4444' (Red)
+│   │   │   ├─ colorInfo: '#3B82F6' (Blue)
+│   │   │   └─ colorTextBase: '#000000'
+│   │   ├─ Typography tokens:
+│   │   │   ├─ fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'
+│   │   │   ├─ fontSize: 14 (base)
+│   │   │   ├─ fontWeightStrong: 600
+│   │   │   └─ lineHeight: 1.5714
+│   │   ├─ Sizing tokens:
+│   │   │   ├─ borderRadius: 6
+│   │   │   ├─ controlHeight: 40
+│   │   │   └─ marginLG: 24
+│   │   └─ Motion tokens:
+│   │       ├─ motionEaseInOut: 'cubic-bezier(0.645, 0.045, 0.355, 1)'
+│   │       ├─ motionDuration: 0.3s
+│   │       └─ Smooth animations
+│   └─ components: Per-component overrides
+│       ├─ Button: Hover effects, shadow, border-radius
+│       ├─ Input: Focus color, placeholder styling
+│       ├─ Select: Dropdown styling
+│       ├─ Card: Shadow, border, padding
+│       ├─ Table: Header background, row hover
+│       ├─ Layout: Sidebar, content area
+│       ├─ Modal: Border radius, shadow
+│       └─ Message: Alert & notification styles
+├─ Application:
+│   └─ Wrapped inside App.jsx dengan <ConfigProvider theme={beaCukaiTheme}>
+└─ Benefits:
+    ├─ Consistent design across app
+    ├─ Easy to update (single source of truth)
+    ├─ Bea Cukai branding compliance
+    └─ Dark mode ready (dapat di-extend)
+
+
+src/styles/antd-custom.css
+├─ Fungsi: Custom CSS overrides dan utilities
+├─ Sections:
+│   ├─ CSS Variables (Bea Cukai colors)
+│   ├─ Button styling (hover effects, transitions)
+│   ├─ Input & TextArea (focus states, colors)
+│   ├─ Card (elevation, shadows)
+│   ├─ Table styling (header, rows, alternating)
+│   ├─ Badge & Tag styling
+│   ├─ Modal & Alert styling
+│   ├─ Utility classes (.flex-center, .gap-*, .p-*, etc.)
+│   ├─ Responsive utilities (@media queries)
+│   ├─ Print styles (untuk print-friendly)
+│   └─ Scrollbar styling
+├─ Approach:
+│   └─ Load AFTER Ant Design reset.css untuk override
+├─ Key Classes:
+│   ├─ .flex-*: Flexbox utilities
+│   ├─ .gap-*: Gap/spacing utilities (xs, sm, md, lg, xl)
+│   ├─ .p-* / .m-*: Padding/margin utilities
+│   ├─ .text-*: Text color utilities
+│   ├─ .bg-*: Background color utilities
+│   ├─ .shadow-*: Shadow depth utilities
+│   └─ .rounded-*: Border radius utilities
+└─ Load Order:
+    └─ main.jsx → antd default reset.css → antd-custom.css (overrides)
+
+
+src/components/AntdComponents.jsx
+├─ Fungsi: Pre-built reusable Ant Design component wrappers
+├─ Exports:
+│   ├─ Card Wrapper: icon + title support
+│   ├─ Button Variants:
+│   │   ├─ PrimaryButton
+│   │   ├─ SecondaryButton
+│   │   ├─ DangerButton
+│   │   ├─ SuccessButton
+│   │   └─ GhostButton
+│   ├─ Form Components:
+│   │   ├─ TextInput (wrapper Ant Input)
+│   │   ├─ TextArea (wrapper Ant TextArea)
+│   │   ├─ SelectInput (wrapper Ant Select)
+│   │   ├─ FormGroup (label + input container)
+│   │   ├─ FormGrid (responsive grid layout)
+│   │   └─ FormRow (horizontal form layout)
+│   ├─ Status Indicators:
+│   │   ├─ StatusBadge (New, In Progress, Completed, etc.)
+│   │   ├─ PriorityBadge (Low, Medium, High, Critical)
+│   │   └─ RiskBadge (Low, Medium, High, Critical)
+│   ├─ Display Components:
+│   │   ├─ DataTable (Ant Table wrapper dengan features)
+│   │   ├─ SectionDivider
+│   │   ├─ InfoAlert
+│   │   └─ EmptyState
+│   └─ Layout:
+│       ├─ CenteredContainer
+│       └─ ResponsiveGrid
+├─ Usage Benefit:
+│   └─ Consistency, reusability, easy customization
+└─ Import dalam component tab untuk consistent look
+
+
+src/App.css & src/index.css
+├─ Global styling original
+├─ Dimaintain sebagai fallback
+└─ Compat dengan new Ant Design system
+
+
+4. THEME & BRANDING - BEA CUKAI COMPLIANCE
+────────────────────────────────────────────
+
+Bea Cukai Standards Integration:
+├─ Primary Branding:
+│   ├─ Color: #1A428B (Official Bea Cukai Blue - Dark Blue)
+│   ├─ Font: Segoe UI / System font stack
+│   ├─ Logo: Placeholder ready (dapat di-replace dengan resmi)
+│   └─ Typography: Professional, Government-standard
+├─ Visual Hierarchy:
+│   ├─ H1: 24px, bold, primary color
+│   ├─ H2: 18px, bold, primary color
+│   ├─ Body: 14px, normal
+│   └─ Small: 12px, gray
+├─ Spacing System:
+│   ├─ xs: 4px
+│   ├─ sm: 8px
+│   ├─ md: 16px (default)
+│   ├─ lg: 24px
+│   └─ xl: 32px
+├─ Color Palette:
+│   ├─ Primary: #1A428B (Bea Cukai Blue)
+│   ├─ Success: #22C55E (Green - untuk approved/complete)
+│   ├─ Warning: #F59E0B (Orange - untuk pending/attention)
+│   ├─ Error: #EF4444 (Red - untuk reject/error)
+│   ├─ Info: #3B82F6 (Blue - untuk informational)
+│   ├─ Neutral: #6B7280, #E5E7EB, #F3F4F6
+│   └─ Background: #FFFFFF
+├─ Accessibility:
+│   ├─ WCAG AA compliant color contrasts
+│   ├─ Readable font sizes
+│   ├─ Proper semantic HTML
+│   └─ Keyboard navigation support
+└─ Government Compliance:
+    ├─ Indonesian language support
+    ├─ Date format: DD/MM/YYYY
+    ├─ Currency: IDR (Rupiah)
+    └─ Legal/formal document styling
+
+
+================================================================================
+ALUR KERJA & DATA FLOW
+================================================================================
+
+SCENARIO 1: User membuat project documentation baru
+──────────────────────────────────────────────────
+
+1. User buka aplikasi di http://localhost:5173
+2. App.jsx render dengan ConfigProvider theme
+3. Default state: Tab 1 (TabKajian) aktif
+4. User mengisi form fields secara manual atau upload dokumen
+
+   Input Manual Flow:
+   ├─ User type di TextArea "Latar Belakang"
+   ├─ onChange event → handleUpdateField()
+   └─ projectData state updated di App.jsx
+
+   Upload Document Flow:
+   ├─ User drag-drop PDF ke FileUploadWithOCR
+   ├─ Component detect file type = PDF
+   ├─ Try native PDF extraction (pdfjs-dist)
+   ├─ Assess text quality
+   ├─ If quality < 50: Trigger OCR (Tesseract.js)
+   ├─ OCR process each page
+   ├─ Clean text (remove artifacts)
+   ├─ Quality score = 78 (example)
+   ├─ Callback onTextExtracted(text) triggered
+   └─ Text auto-fill ke "Latar Belakang" field
+
+5. User pindah tab ke TabBRD
+   ├─ Form state tetap di App.jsx (tidak hilang)
+   ├─ User isi "Proses Bisnis", tambah modules/features
+   └─ Each Add/Remove button trigger handleAddArray(), handleRemoveArray()
+
+6. Repeat untuk TabFSD, TabCharter, TabPenelitian
+   └─ Semua data terakumulasi di projectData object
+
+7. User klik "Export to Excel" button
+   ├─ Data validation di excelGenerator.js
+   ├─ Generate multi-sheet workbook
+   ├─ Apply styling (colors, borders, fonts)
+   └─ Trigger browser download (project-doc.xlsx)
+
+8. User klik "Print" button
+   ├─ CSS @media print aktif (hide UI buttons)
+   ├─ Print-friendly layout render
+   └─ User print/save as PDF
+
+
+SCENARIO 2: Data validation & quality checks
+───────────────────────────────────────────
+
+1. During OCR processing:
+   ├─ Tesseract extract text → "hasil scan: 8283 kata..."
+   ├─ assessTextQuality(text) calculate score:
+   │   ├─ Check whitespace density
+   │   ├─ Check alphanumeric ratio
+   │   ├─ Check for common OCR artifacts (###, |||, etc.)
+   │   └─ Return score 0-100
+   ├─ If score 80-100: "Excellent - native extraction"
+   ├─ If score 50-79: "Good - OCR processed"
+   ├─ If score < 50: "Low quality - manual review recommended"
+   └─ Display to user with star rating
+
+2. Before export:
+   ├─ validateRequiredFields(projectData)
+   ├─ Check: nama proyek, background, goals, scope required
+   ├─ If missing: Show warning toast "Please fill in required fields"
+   └─ If valid: Proceed dengan export
+
+
+SCENARIO 3: Tab switching & state persistence
+──────────────────────────────────────────────
+
+1. User fill form in TabKajian
+   └─ Data stored in projectData state (App.jsx)
+
+2. User click TabBRD tab
+   ├─ selectedTab state change to 'brd'
+   ├─ TabKajian unmount (state NOT lost - di App)
+   ├─ TabBRD mount
+   └─ User see empty TabBRD form OR pre-filled data if already entered
+
+3. User click back to TabKajian
+   ├─ selectedTab state change back to 'kaj'
+   ├─ TabBRD unmount (state NOT lost)
+   ├─ TabKajian mount
+   └─ User see previously entered data (restored from projectData)
+
+State Management Philosophy:
+├─ ALL state di App.jsx (single source of truth)
+├─ Tabs adalah "dumb" components (receive props, call callbacks)
+├─ No component-level state (getState(), setState())
+├─ All changes go through App.jsx handlers
+└─ No data loss on tab switches
+
+
+================================================================================
+FITUR-FITUR UTAMA
+================================================================================
+
+1. OCR (Optical Character Recognition) System
+─────────────────────────────────────────────
+Teknologi: Tesseract.js v7.0.0
+Fitur:
+├─ Support multi-language: Indonesian + English
+├─ Process PDFs dengan render-to-canvas approach
+├─ Process scanned images (.png, .jpg, .jpeg, .gif, .webp)
+├─ Auto-detect quality dan provide confidence score
+├─ Intelligent fallback: Try native → If bad → Use OCR
+├─ Batch processing dengan progress tracking
+├─ Non-blocking (worker thread)
+├─ Cleanup setelah selesai (memory management)
+├─ Error handling dengan user-friendly messages
+└─ Extract text → Auto-fill form fields
+
+Quality Scoring:
+├─ Whitespace density analysis (30% weight)
+│   ├─ Too many blank lines = scan error
+│   ├─ Proper spacing = good extraction
+│   └─ Dense text = potentially corrupted
+├─ Alphanumeric ratio (40% weight)
+│   ├─ Indonesian documents expect 60-80% alphanumeric
+│   ├─ Too high special chars = OCR artifact
+│   └─ Too low = incomplete extraction
+├─ Corruption detection (20% weight)
+│   ├─ Look for common OCR artifacts: ###, |||, ****
+│   ├─ Character sequences that don't make sense
+│   └─ Unknown unicode blocks
+└─ Length validation (10% weight)
+    ├─ If extracted text < 50 chars = likely failed
+    └─ If extracted text > 50k chars = likely corrupted
+
+Use Cases:
+├─ Import scanned project requirements document
+├─ Extract text dari photo of whiteboard/sketch
+├─ Read Indonesian government forms/templates
+├─ Automate data entry from hardcopy documents
+└─ Support auditors yang punya old paper documents
+
+
+2. Multi-Tab Form System (5 Tabs)
+─────────────────────────────────
+Each tab represents formal documentation section:
+
+Tab 1 - KAJIAN KEBUTUHAN (Requirement Analysis)
+├─ Latar Belakang (Background)
+├─ Tujuan Proyek (Project Goals)
+├─ Ruang Lingkup (Scope)
+├─ Peluang Bisnis (Business Opportunities)
+├─ Risiko (Risks)
+├─ Manfaat (Benefits)
+└─ Output: Business case document
+
+Tab 2 - BRD (Business Requirements Document)
+├─ Proses Bisnis (Business Process)
+├─ Modul/Komponen (Modules) - dynamic array
+├─ Fitur (Features) - dynamic array
+├─ Use Cases - dynamic array
+├─ Requirement Details
+└─ Output: Formal business requirements spec
+
+Tab 3 - FSD (Functional Specification Document)
+├─ BPMN Diagram / Flow
+├─ Technical Stack
+├─ Architecture
+├─ Components/Services
+├─ APIs & Interfaces
+├─ Data Model
+└─ Output: Technical specification for developers
+
+Tab 4 - PROJECT CHARTER (Project Governance)
+├─ Scope Proyek (Project Scope)
+├─ Timeline (Schedule)
+├─ Budget
+├─ Resources
+├─ Success Criteria
+├─ Stakeholders
+└─ Output: Project authorization & governance
+
+Tab 5 - PENELITIAN (Research & Actor Definition)
+├─ Aktor (Actors/Users)
+├─ User Classes
+├─ Use Case Scenarios
+├─ User Journey Mapping
+├─ Training Requirements
+└─ Output: User research & stakeholder analysis
+
+Features per Tab:
+├─ Form validation
+├─ Auto-save to browser localStorage (optional)
+├─ OCR file upload integration
+├─ Add/Remove dynamic array items
+├─ Rich text support (basic markdown)
+├─ Comments/notes section
+└─ Status tracking
+
+
+3. Export Capabilities
+────────────────────
+Multiple Export Formats:
+
+📊 Excel Export (.xlsx)
+├─ Multi-sheet workbook
+│   ├─ Sheet 1: Project Overview
+│   ├─ Sheet 2: Kajian Kebutuhan
+│   ├─ Sheet 3: BRD Detail
+│   ├─ Sheet 4: FSD Specification
+│   ├─ Sheet 5: Project Charter
+│   ├─ Sheet 6: Penelitian
+│   └─ Sheet 7: References
+├─ Styling applied:
+│   ├─ Header row: Bold, primary color background
+│   ├─ Column width auto-adjusted
+│   ├─ Cell borders
+│   ├─ Text wrap enabled
+│   └─ Frozen header row
+├─ Features:
+│   ├─ Timestamp embedding
+│   ├─ Metadata sheet (project info)
+│   ├─ Hyperlinks untuk references
+│   ├─ Number formatting untuk dates/currency
+│   └─ Table auto-filter support
+
+📄 Print to PDF
+├─ Via browser print dialog
+├─ CSS @media print aktif
+├─ Optimized layout:
+│   ├─ Hide UI buttons
+│   ├─ 1-page-left layout (no sidebars)
+│   ├─ Readable font sizes
+│   ├─ Page breaks at section dividers
+│   └─ Professional formatting
+
+💾 Local Save (Browser Storage)
+├─ Draft auto-save to localStorage
+├─ Session persistence
+├─ Restore on page reload
+├─ Manual save/load capability
+
+Future Extensions:
+├─ Word (.docx) export via docx library
+├─ PDF export via jsPDF
+├─ Google Docs export
+└─ Notion export API
+
+
+4. Ant Design Component Library
+─────────────────────────────
+
+Pre-built Components:
+├─ Button Variants (Primary, Secondary, Danger, Success, Ghost)
+├─ Form Components (Input, TextArea, Select, FormGroup)
+├─ Display Components (Card, Table, Badge, Alert)
+├─ Layout Components (Grid, Divider, Centered)
+├─ Modal & Drawer
+├─ Notification & Message System
+├─ Tooltip & Popover
+├─ DatePicker & TimePicker
+└─ Spinner & Skeleton Loading
+
+Advantages:
+├─ Professional, accessible components
+├─ Built-in keyboard navigation
+├─ Mobile-responsive layouts
+├─ Theme-able via ConfigProvider
+├─ Extensive documentation
+├─ Large community
+└─ Production-ready
+
+
+5. Bea Cukai Branding & Theming
+────────────────────────────────
+Features:
+├─ Official government color palette
+├─ Consistent typography (Segoe UI)
+├─ Spacing system (xs/sm/md/lg/xl)
+├─ Government-compliant layout
+├─ Indonesian language support
+├─ Accessibility standards (WCAG AA)
+├─ Print-friendly styles
+├─ Professional appearance
+└─ Easy theme customization
+
+Visual Identity:
+├─ Primary Brand Color: #1A428B
+├─ Secondary Colors: Green, Orange, Red, Blue
+├─ Clean, minimal design
+├─ Clear information hierarchy
+├─ High contrast for readability
+└─ Government-suitable formality level
+
+
+================================================================================
+TESTING & VALIDATION
+================================================================================
+
+Manual Testing Scenarios:
+
+1. OCR Testing
+   └─ Test files provided in src/test-models.js
+   ├─ Scanned PDF: High quality, low quality versions
+   ├─ Image: PNG/JPG dengan various resolutions
+   ├─ Corrupt files: Malformed PDFs, blank images
+   ├─ Expected: Quality score + text extraction
+   └─ Verify: Auto-fill works, fallback triggers
+
+
+2. Form Testing
+   ├─ Fill each tab completely
+   ├─ Test Add/Remove array items
+   ├─ Validate error messages
+   ├─ Test required fields validation
+   ├─ Cross-tab navigation
+   └─ Verify: Data persistence across tabs
+
+
+3. Export Testing
+   ├─ Fill form, export to Excel
+   ├─ Verify all sheets created
+   ├─ Check styling applied
+   ├─ Test print (Ctrl+P)
+   ├─ Check page breaks
+   └─ Verify: Readable output
+
+
+4. Browser Compatibility
+   ├─ Chrome/Edge (latest)
+   ├─ Firefox (latest)
+   ├─ Safari (latest)
+   └─ Mobile browsers (iOS Safari, Chrome Mobile)
+
+
+5. Performance Testing
+   ├─ Large PDF processing (100+ pages)
+   ├─ Large form submission
+   ├─ Multiple tab switching
+   ├─ Memory usage monitoring
+   └─ Expected: < 5 seconds OCR, smooth UI
+
+
+================================================================================
+DEPLOYMENT & CONFIGURATION
+================================================================================
+
+Development Mode:
+mkdir ceisa-doc-gen
+cd ceisa-doc-gen
+npm install
+npm run dev
+└─ Starts: http://localhost:5173
+
+Production Build:
+npm run build
+└─ Creates: dist/ folder with optimized files
+
+Environment Variables (.env):
+├─ VITE_API_URL: Backend API endpoint (if any)
+├─ VITE_DEBUG_MODE: Enable debug logging
+└─ VITE_OCR_LANGUAGE: Default OCR language (default: 'ind+eng')
+
+Build Tool: Vite 7.3.1
+├─ Lightning-fast development server
+├─ ESM-first approach
+├─ Optimized production build
+├─ Hot module replacement (HMR)
+└─ Tree-shaking untuk smaller bundle
+
+
+================================================================================
+DEPENDENCIES & TECH STACK
+================================================================================
+
+Core:
+├─ react: 19.2.0 (UI framework)
+├─ react-dom: 19.2.0 (React DOM binding)
+└─ vite: 7.3.1 (Development server & build tool)
+
+UI Framework:
+├─ antd: 5.x (Ant Design component library)
+└─ lucide-react: Icons library
+
+Document Processing:
+├─ tesseract.js: 7.0.0 (OCR engine)
+├─ pdfjs-dist: PDF parsing
+├─ mammoth: DOCX parsing
+└─ xlsx: Excel generation
+
+Utilities:
+├─ react-hot-loader (HMR)
+├─ PostCSS (CSS processing)
+└─ ESLint (Code quality)
+
+Dev Dependencies:
+├─ @vitejs/plugin-react: React plugin untuk Vite
+├─ eslint: Code linting
+└─ Babel: JavaScript transpiler
+
+
+================================================================================
+TROUBLESHOOTING GUIDE
+================================================================================
+
+Problem: OCR tidak extract text
+Solusi:
+├─ Check file format adalah PDF/image yang valid
+├─ Verify Tesseract.js worker loaded
+├─ Check browser console untuk error messages
+├─ Try manual text entry sebagai fallback
+
+Problem: Export Excel gagal
+Solusi:
+├─ Verify data di semua fields valid
+├─ Check localStorage tidak full
+├─ Try export dengan minimal data dahulu
+├─ Check browser dev console
+
+Problem: Tab data hilang
+Solusi:
+├─ Check localStorage enabled
+├─ Verify projectData state tidak di-reset
+├─ Check tab switching event handler
+├─ Use browser dev tools Redux extension
+
+Problem: Styling tidak apply
+Solusi:
+├─ Verify antd-custom.css imported di main.jsx
+├─ Check CSS load order (reset → theme → custom)
+├─ Clear browser cache (Ctrl+Shift+Del)
+├─ Verify ConfigProvider wrapping App.jsx
+
+Problem: Performa lambat dengan OCR
+Solusi:
+├─ Reduce OCR language count (default: ind+eng)
+├─ Process smaller PDFs dahulu
+├─ Check system resources (RAM, CPU)
+├─ Use batch processing dengan progress tracking
+
+
+================================================================================
+FUTURE ENHANCEMENTS
+================================================================================
+
+Short Term:
+├─ [ ] Dark mode theme variant
+├─ [ ] Multi-language UI (id, en)
+├─ [ ] Local storage auto-save
+├─ [ ] Keyboard shortcuts (Ctrl+E, Ctrl+P)
+├─ [ ] Search across all tabs
+└─ [ ] Undo/Redo functionality
+
+Medium Term:
+├─ [ ] Backend integration untuk cloud save
+├─ [ ] User authentication & sessions
+├─ [ ] Document sharing/collaboration
+├─ [ ] Version control (history/rollback)
+├─ [ ] Comment & approval workflow
+├─ [ ] Template management
+└─ [ ] AI-powered suggestions
+
+Long Term:
+├─ [ ] Mobile app (React Native)
+├─ [ ] Desktop app (Electron)
+├─ [ ] Real-time collaboration (WebSocket)
+├─ [ ] Advanced OCR (layout detection, table parsing)
+├─ [ ] Machine learning untuk document classification
+├─ [ ] Integration dengan Bea Cukai official systems
+└─ [ ] API untuk third-party integrations
+
+
+================================================================================
+DEVELOPER GUIDELINES
+================================================================================
+
+Code Style:
+├─ Use camelCase untuk variables/functions
+├─ Use PascalCase untuk React components
+├─ Use UPPER_SNAKE_CASE untuk constants
+├─ Keep functions small & focused
+├─ Add JSDoc comments untuk exported functions
+└─ Follow ESLint rules
+
+Component Structure:
+├─ Functional components (no class components)
+├─ Use React hooks (useState, useEffect, etc.)
+├─ Props di-destructure
+├─ One component per file
+├─ Export as default
+└─ Keep JSX readable
+
+State Management:
+├─ Centralized dalam App.jsx
+├─ Pass callbacks untuk child component updates
+├─ No deep prop drilling (use context if needed)
+├─ Immutable state updates
+└─ Never mutate state directly
+
+Performance:
+├─ Use React.memo untuk heavy children
+├─ Lazy load components (dynamic import)
+├─ Optimize image sizes
+├─ Cache expensive calculations
+├─ Minimize re-renders
+└─ Code split pada route/tab
+
+Naming Conventions:
+├─ handleXxx() untuk event handlers
+├─ useXxx() untuk custom hooks
+├─ isXxx() / hasXxx() untuk booleans
+├─ selectXxx() untuk selector functions
+├─ fetchXxx() / getXxx() untuk API calls
+├─ validateXxx() untuk validation functions
+└─ formatXxx() untuk formatting functions
+
+
+================================================================================
+QUICK START GUIDE
+================================================================================
+
+1. Clone repository
+   git clone <repo-url>
+
+2. Install dependencies
+   cd ceisa-doc-gen-js
+   npm install
+
+3. Start development server
+   npm run dev
+   └─ Opens: http://localhost:5173
+
+4. Create new project
+   ├─ Fill KajianKebutuhan tab
+   ├─ Fill BRD tab
+   ├─ Fill FSD tab
+   ├─ Fill Charter tab
+   ├─ Fill Penelitian tab
+   └─ Click Export to Excel
+
+5. Upload documents (OCR)
+   ├─ Click "Upload & Extract" di setiap tab
+   ├─ Drag PDF/image atau click browse
+   ├─ Wait untuk OCR processing
+   ├─ Check quality score
+   └─ Text auto-fill ke form
+
+6. Export hasil
+   ├─ Click "Export to Excel" button
+   ├─ Save file
+   ├─ Or Print (Ctrl+P) untuk PDF
+   └─ Done!
+
+
+================================================================================
+SUMMARY
+================================================================================
+
+Aplikasi ini adalah production-ready tool untuk generate project documentation
+dengan standar Bea Cukai Indonesia. Menggabungkan OCR untuk automate data entry,
+Ant Design untuk professional UI, dan comprehensive form system untuk organized
+documentation management.
+
+Key Features:
+✓ 5-tab documentation system
+✓ Advanced OCR dengan quality detection
+✓ Multi-format export (Excel, PDF)
+✓ Bea Cukai compliance & branding
+✓ Responsive & accessible
+✓ Production-ready codebase
+
+Perfect untuk:
+- Project managers di pemerintah
+- Business analysts
+- System architects
+- Technical writers
+- Organizations yang butuh formal documentation
+
+Current Status: Ready for deployment ✓
+
