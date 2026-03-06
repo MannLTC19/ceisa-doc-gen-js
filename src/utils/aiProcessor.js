@@ -267,7 +267,7 @@ Analyze the document and extract structured project data for CEISA 4.0 IT procur
 
 OUTPUT PRIORITY — write in this exact order, stop cleanly if token limit is near:
 TIER 1 (CRITICAL — always complete ALL of these first, never skip any):
-  nama, latarBelakang, masalahIsu, asIsToBe, actors, useCases, kebutuhanFungsional, kebutuhanNonFungsional, risikoBisnis
+  nama, latarBelakang, masalahIsu, asIsToBe, kebutuhanFungsional, kebutuhanNonFungsional, actors, useCases, risikoBisnis
 TIER 2 (IMPORTANT — write after Tier 1):
   pengampu, unitPenanggungJawab, namaPIC, kontakPIC, targetPenyelesaian, targetOutcome, bia, detectedPeople
 TIER 3 (OPTIONAL — only if tokens remain):
@@ -277,10 +277,10 @@ EXTRACTION RULES:
 - nama: the full official title of the document or project. Look for: judul dokumen, nama proyek, nama kegiatan,
   nama modul, nama sistem — typically found in the document header, cover page, or first paragraph.
   If multiple titles found, use the most specific/complete one. NEVER leave empty.
-- latarBelakang: summarize the background and urgency of the project in 2-4 sentences.
+- latarBelakang: summarize the background and urgency in MAX 2 sentences. Be concise.
   Look for: latar belakang, pendahuluan, dasar hukum, konteks, sejarah, urgensi.
   If not explicitly labeled, infer from the opening paragraphs. NEVER leave empty.
-- masalahIsu: summarize the core problems or pain points in 2-4 sentences.
+- masalahIsu: summarize the core problems or pain points in MAX 2 sentences. Be concise.
   Look for: masalah, isu, kendala, gap, permasalahan, hambatan, tantangan.
   If not explicitly labeled, infer from context. NEVER leave empty.
 - asIsToBe: min 5 items comparing current state vs proposed state.
@@ -289,20 +289,20 @@ EXTRACTION RULES:
   (b) goals/requirements stated → those are the To-Be conditions
   (c) any mention of manual processes → As-Is; automated system → To-Be
   ALWAYS produce at least 5 items by inferring. NEVER return an empty array.
-- actors: every human role, system, external service interacting with the system
+- actors: 7-10 items — every human role, system, external service interacting with the system
   type: GUI=human via browser, Protocol=system-to-system, API=internal service
-- useCases: every feature/activity; name as "Verb Noun" in Indonesian
+- useCases: 8-10 items only — top use cases; name as "Verb Noun" in Indonesian
   transactions: Simple=1-3 steps, Average=4-7, Complex=8+
-- kebutuhanFungsional: min 10 items, format "Sistem harus mampu [aksi] [objek] [kualifikasi]"
+- kebutuhanFungsional: 8-10 items only, format "Sistem harus mampu [aksi] [objek] [kualifikasi]"
   prioritas: Mandatory|High|Medium|Low
-- kebutuhanNonFungsional: min 6 items — Security, Performance, Availability, Scalability, Compliance, Usability
+- kebutuhanNonFungsional: 5 items — Security, Performance, Availability, Scalability, Compliance
 - risikoBisnis: min 5 items; integration points, manual processes, regulatory items each = 1 risk
 - bia: Critical→RTO:1h RPO:1h, High→RTO:4h RPO:4h, Medium→RTO:8h RPO:24h, Low→RTO:24h RPO:48h
 - mermaid: max 12 nodes total per diagram, double quotes only, no semicolons
   processFlow=flowchart TD top 8 steps, useCaseDiagram=flowchart LR top 8 UCs, erd=top 5 entities
   JSON-encode: newlines as \n, inner quotes as \"
 
-MINIMUMS: actors≥5, useCases≥8, kebutuhanFungsional≥10, kebutuhanNonFungsional≥6, risikoBisnis≥5, asIsToBe≥5
+MINIMUMS: actors≥7, useCases≥8, kebutuhanFungsional≥8, kebutuhanNonFungsional≥5, risikoBisnis≥5, asIsToBe≥5
 
 OUTPUT RULES:
 1. Return ONLY pure JSON — no markdown, no backticks, start { end }
@@ -313,13 +313,13 @@ OUTPUT RULES:
 OUTPUT SCHEMA (in output order):
 {
   "nama": "string — full official project/document title, NEVER empty",
-  "latarBelakang": "string — background and urgency, NEVER empty",
-  "masalahIsu": "string — core problems and pain points, NEVER empty",
+  "latarBelakang": "string — max 2 sentences, concise background summary, NEVER empty",
+  "masalahIsu": "string — max 2 sentences, concise problem summary, NEVER empty",
   "asIsToBe": [ { "id": "1", "factor": "string", "asIs": "string", "toBe": "string" } ],
-  "actors": [ { "id": "1", "name": "string", "type": "GUI|Protocol|API", "desc": "string" } ],
-  "useCases": [ { "id": "1", "subSystem": "string", "name": "string", "transactions": 5, "actorRef": "string", "preCond": "string", "postCond": "string" } ],
   "kebutuhanFungsional": [ { "id": "FR-01", "deskripsi": "Sistem harus mampu ...", "prioritas": "Mandatory|High|Medium|Low" } ],
   "kebutuhanNonFungsional": [ { "id": "NFR-01", "kategori": "Security|Performance|Availability|Scalability|Compliance|Usability|Maintainability", "deskripsi": "string" } ],
+  "actors": [ { "id": "1", "name": "string", "type": "GUI|Protocol|API", "desc": "string" } ],
+  "useCases": [ { "id": "1", "subSystem": "string", "name": "string", "transactions": 5, "actorRef": "string", "preCond": "string", "postCond": "string" } ],
   "risikoBisnis": [ { "id": "R-01", "risk": "string", "impact": "string", "mitigasi": "string", "level": "Tinggi|Sedang|Rendah" } ],
   "pengampu": "string",
   "unitPenanggungJawab": "string",
