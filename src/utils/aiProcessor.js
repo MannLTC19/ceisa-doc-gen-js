@@ -1,24 +1,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  aiProcessor.js  —  Ultra-Optimized Two-Pass Haiku Analyzer (COST MINIMIZED)
+//  aiProcessor.js  —  Two-Pass Claude Document Analyzer for CEISA 4.0 Doc Genie
 //
-//  PASS 1 — Index  (claude-haiku-4-5, ~100 tokens)
-//  PASS 2 — Extract (claude-haiku-4-5, ~1-2k tokens)
-//
-//  Both passes use Haiku for maximum cost efficiency.
-//  TIER 1 fields only: actors, useCases, kebutuhanFungsional, kebutuhanNonFungsional, risikoBisnis, asIsToBe
+//  PASS 1 — Triage  (claude-haiku-4-5, fast + cheap)
+//  PASS 2 — Deep Analysis  (claude-opus-4-6, thorough)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TRIAGE_MODEL   = "claude-haiku-4-5-20251001";
-const ANALYSIS_MODEL = "claude-haiku-4-5-20251001";  // Haiku for both = max cost reduction
+const ANALYSIS_MODEL = "claude-opus-4-6";
 const CLAUDE_API_URL = "/anthropic/v1/messages"; // proxied via vite.config.js
 
-// ─── OPTIMIZED FOR $1 MAX BUDGET PER DOCUMENT ───────────────────────────────
-// Budget: $1 = ~1,250 input tokens (0.80/M) + ~250 output tokens (4.0/M) = ~1,500 total
-// Current setup: Triage (small) + Analysis (512 max output) = ~800-1,200 total tokens
-const TRIAGE_MAX_TOKENS   = 128;   // Ultra-minimal triage: page index only
-const ANALYSIS_MAX_TOKENS = 512;   // Strict output limit: focus on priority fields only
+const TRIAGE_MAX_TOKENS   = 1024;
+const ANALYSIS_MAX_TOKENS = 7000;  // ✅ Tier 1 hard limit: 8K output/min — stay under
 
-// ─── LAYER 1: Raw text sanitizer ─────────────────────────────────────────────
+// ─── Raw text sanitizer ───────────────────────────────────────────────────────
 const sanitizeRawText = (text) =>
   text
     .replace(/<(bos|eos|pad|unk|s|\/s|sep|mask|cls)>/gi, "")
@@ -27,11 +21,10 @@ const sanitizeRawText = (text) =>
     .replace(/\r\n/g, "\n")
     .trim();
 
-// ─── LAYER 2: Mermaid ERD sanitizer ──────────────────────────────────────────
+// ─── Mermaid ERD sanitizer ────────────────────────────────────────────────────
 const sanitizeMermaidErd = (erd) => {
   if (!erd) return erd;
   const lines = erd.split("\n");
-
   const fixed = lines.map((line) => {
     line = line.replace(/^\s*([A-Za-z][A-Za-z0-9_]*)\s*\{/, (m, name) => {
       const clean = name.toUpperCase().replace(/[^A-Z0-9_]/g, "").slice(0, 30);
@@ -51,7 +44,6 @@ const sanitizeMermaidErd = (erd) => {
     line = line.replace(/;$/, "").replace(/^(\s+\w+\s+\w+)\s+\([^)]*\)/, "$1");
     return line;
   });
-
   const expanded = [];
   for (const line of fixed) {
     const m = line.match(/^\s*([A-Z][A-Z0-9_]*)\s*\{([^}]+)\}/);
@@ -66,12 +58,9 @@ const sanitizeMermaidErd = (erd) => {
   return expanded.join("\n");
 };
 
-// ─── LAYER 3: Mermaid Flowchart sanitizer ────────────────────────────────────
+// ─── Mermaid Flowchart sanitizer ──────────────────────────────────────────────
 const sanitizeMermaidFlowchart = (code) => {
   if (!code) return code;
-  let counter = 0;
-  const nid = () => `_n${++counter}`;
-
   const lines = code.split("\n").map((line) => {
     line = line.replace(/\['/g, '["').replace(/'\]/g, '"]');
     line = line.replace(/\(['"]/g, '(["').replace(/['"]\)/g, '"])');
@@ -83,21 +72,16 @@ const sanitizeMermaidFlowchart = (code) => {
     if (/^\s*usecaseDiagram\s*$/.test(line)) return "flowchart LR";
     return line;
   });
-
   const first = lines.find((l) => l.trim().length > 0) || "";
   if (!/^flowchart\s+(TD|LR|BT|RL|TB)/i.test(first)) lines.unshift("flowchart LR");
-
   return lines.join("\n");
 };
 
-// ─── JSON Repair: Fix unescaped control chars inside strings ─────────────────
-// Opus sometimes emits literal newlines/tabs inside JSON string values.
-// This scanner walks char-by-char and escapes them properly.
+// ─── JSON Repair: Fix unescaped control chars inside strings ──────────────────
 const fixUnescapedCharsInStrings = (str) => {
   let result = '';
   let inString = false;
   let escaped  = false;
-
   for (let i = 0; i < str.length; i++) {
     const ch = str[i];
     if (escaped)                 { escaped = false; result += ch; continue; }
@@ -113,14 +97,11 @@ const fixUnescapedCharsInStrings = (str) => {
   return result;
 };
 
-// ─── JSON Repair: Close unclosed brackets (truncation recovery) ───────────────
-// When Opus hits the token limit mid-response, JSON is truncated.
-// This closes any unclosed brackets/braces so JSON.parse can succeed.
+// ─── JSON Repair: Close unclosed brackets ────────────────────────────────────
 const repairTruncatedJson = (str) => {
   const stack = [];
   let inString = false;
   let escaped  = false;
-
   for (let i = 0; i < str.length; i++) {
     const ch = str[i];
     if (escaped)                { escaped = false; continue; }
@@ -130,11 +111,9 @@ const repairTruncatedJson = (str) => {
     if (ch === '{' || ch === '[') { stack.push(ch); continue; }
     if (ch === '}' || ch === ']') { stack.pop(); }
   }
-
   let repaired = str.trimEnd();
   if (inString) repaired += '"';
-  repaired = repaired.replace(/,\s*$/, ''); // strip trailing comma
-
+  repaired = repaired.replace(/,\s*$/, '');
   for (let i = stack.length - 1; i >= 0; i--) {
     repaired += stack[i] === '{' ? '}' : ']';
   }
@@ -142,7 +121,6 @@ const repairTruncatedJson = (str) => {
 };
 
 // ─── Field sanitizer ──────────────────────────────────────────────────────────
-// Ensures every array field is an array of plain objects — prevents table crash.
 const sanitizeFields = (obj) => {
   const arrayFields = [
     'actors', 'useCases', 'kebutuhanFungsional', 'kebutuhanNonFungsional',
@@ -153,7 +131,7 @@ const sanitizeFields = (obj) => {
     obj[key] = obj[key].filter(item => item && typeof item === 'object' && !Array.isArray(item));
   });
 
-  // Normalize kebutuhanFungsional: ensure both "deskripsi" and "kebutuhan" aliases work
+  // Normalize kebutuhanFungsional: both "deskripsi" and "kebutuhan" aliases
   obj.kebutuhanFungsional = obj.kebutuhanFungsional.map(item => ({
     ...item,
     deskripsi: item.deskripsi || item.kebutuhan || '',
@@ -185,7 +163,7 @@ const applyMermaidSanitizers = (parsed) => {
   if (parsed.mermaid?.useCaseDiagram) parsed.mermaid.useCaseDiagram = sanitizeMermaidFlowchart(parsed.mermaid.useCaseDiagram);
 };
 
-// ─── JSON Parser ──────────────────────────────────────────────────────────────
+// ─── JSON Parser (4-tier repair chain) ───────────────────────────────────────
 const parseAIResponse = (text) => {
   const sanitized = sanitizeRawText(text);
   const firstOpen = sanitized.indexOf("{");
@@ -202,7 +180,7 @@ const parseAIResponse = (text) => {
 
   const raw = sanitized.substring(firstOpen);
 
-  // Attempt 1: parse as-is (ideal — complete valid JSON)
+  // Attempt 1: parse as-is
   try {
     const parsed = JSON.parse(raw);
     applyMermaidSanitizers(parsed);
@@ -211,8 +189,7 @@ const parseAIResponse = (text) => {
     console.warn("⚠️ Direct JSON parse failed:", e1.message);
   }
 
-  // Attempt 2: fix unescaped newlines/tabs inside string values, then parse
-  // Handles: AI emitting literal \n inside JSON strings (most common corruption)
+  // Attempt 2: fix unescaped newlines/tabs
   try {
     const fixed  = fixUnescapedCharsInStrings(raw);
     const parsed = JSON.parse(fixed);
@@ -223,7 +200,7 @@ const parseAIResponse = (text) => {
     console.warn("⚠️ Unescaped-char fix failed:", e2.message);
   }
 
-  // Attempt 3: fix unescaped chars + close unclosed brackets (truncation + corruption)
+  // Attempt 3: fix unescaped chars + close unclosed brackets
   try {
     const fixed    = fixUnescapedCharsInStrings(raw);
     const repaired = repairTruncatedJson(fixed);
@@ -254,81 +231,112 @@ const parseAIResponse = (text) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  TRIAGE SYSTEM PROMPT  (Haiku — ultra-fast page scanner, ~100 tokens)
+//  TRIAGE SYSTEM PROMPT  (Haiku)
 // ─────────────────────────────────────────────────────────────────────────────
-const TRIAGE_SYSTEM_PROMPT = `Index pages fast. Return ONLY JSON with page numbers:
-{"actors":[],"useCases":[],"requirements":[],"diagram":[],"asToBe":[],"risks":[]}
-Each array: list of page #s only. Minimal response.`;
+const TRIAGE_SYSTEM_PROMPT = `
+You are a document indexer for Indonesian government IT project documents (TOR/KAK/BRD).
+You will receive a page skeleton: each entry shows a page number and the first ~300 characters of that page.
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  RESEARCH TAB SYSTEM PROMPT - ULTRA-CONCISE & RESEARCH-FOCUSED
-//
-//  PRIORITY 1 (Research/Penelitian tab) — 60% tokens:
-//  1. useCases + actors (UAW/UUCW) - Use Case Deskripsi & Spesifikasi Aktor
-//  2. kebutuhanFungsional (Resume dari Kajian)
-//  3. asIsToBe (Kondisi As-Is To-Be)
-//
-//  PRIORITY 2 (FSD) — 20% tokens:
-//  1. mermaid diagrams (process flow, use case, ERD)
-//  2. scopeTimeline, budget, resources (from Project Charter)
-//
-//  PRIORITY 3 (Other) — 20% tokens:
-//  1. Non-functional reqs, risks
-//  2. Metadata
-//
-//  Output: COMPACT JSON ONLY (no explanations)
-// ─────────────────────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `EXTRACT ONLY (JSON):
+Your job: identify which page numbers contain each type of information.
+Be generous — if a page might contain relevant info, include it.
+Include adjacent pages when a section likely spans multiple pages.
+
+Return ONLY a raw JSON object. No markdown. No explanation. Just { }.
+
 {
-  "actors": [{"id","name","role","interactions"}],
-  "useCases": [{"id","name","actors","steps","acceptance_criteria"}],
-  "kebutuhanFungsional": [{"id","desc","prioritas","criteria"}],
-  "asIsToBe": [{"factor","asIs","toBe","impact"}],
-  "mermaid": {"processFlow":"","useCaseDiagram":"","erd":""},
-  "lingkup": "project scope",
-  "jadwal": "timeline summary",
-  "sumberDaya": "resources overview",
-  "biaya": "budget summary",
-  "risikoBisnis": [{"risk","level"}],
-  "nama": "project name",
-  "pengampu": "sponsor"
+  "background":   [page numbers with: latar belakang, sejarah, konteks, dasar hukum],
+  "problems":     [page numbers with: masalah, isu, kendala, gap, hambatan],
+  "requirements": [page numbers with: kebutuhan, requirement, fitur, spesifikasi, fungsi],
+  "actors":       [page numbers with: pengguna, user, aktor, stakeholder, peran, jabatan],
+  "process":      [page numbers with: alur bisnis, proses, flowchart, tahapan, langkah, prosedur],
+  "usecases":     [page numbers with: use case, skenario, aktivitas, modul, fungsi sistem],
+  "risks":        [page numbers with: risiko, risk, mitigasi, dampak, ancaman],
+  "people":       [page numbers with: nama, NIP, jabatan, tanda tangan, kontak, email, telepon],
+  "budget":       [page numbers with: anggaran, biaya, pagu, DIPA, nilai, harga, RAB],
+  "timeline":     [page numbers with: jadwal, timeline, milestone, target tanggal, rencana],
+  "outcomes":     [page numbers with: tujuan, sasaran, target, output, outcome, manfaat, hasil]
 }
-
-RULES: Be EXTREMELY CONCISE. Each field: max 2-3 lines. Priority: Actors > Use Cases > Functional Reqs > As-Is To-Be > Other.`;
+`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  TOKEN ALLOCATION STRATEGY - $1 MAX BUDGET PER DOCUMENT
-//
-//  Total budget: $1 USD ≈ 1,500 tokens (input + output combined)
-//  Allocation:
-//    Triage pass:  ~100 tokens (0.08¢)
-//    Analysis:     ~1,400 tokens (0.92¢)
-//    Total:        ~1,500 tokens ($1.00)
+//  DEEP ANALYSIS SYSTEM PROMPT  (Opus)
 // ─────────────────────────────────────────────────────────────────────────────
-const TOKEN_ALLOCATION = {
-  CRITICAL: {
-    actors:              { priority: 1, maxTokens: 350,  description: "Aktor & Interaksi (UAW)" },
-    useCases:            { priority: 1, maxTokens: 350,  description: "Use Case Deskripsi (UUCW)" },
-    kebutuhanFungsional: { priority: 1, maxTokens: 250,  description: "Kebutuhan Fungsional (BRD)" },
-  },
-  HIGH: {
-    asIsToBe:                 { priority: 2, maxTokens: 200, description: "Kondisi As-Is To-Be" },
-    "mermaid.processFlow":    { priority: 2, maxTokens: 150, description: "Process Flow Diagram (FSD)" },
-    "mermaid.useCaseDiagram": { priority: 2, maxTokens: 100, description: "Use Case Diagram (FSD)" },
-  },
-  MEDIUM: {
-    "mermaid.erd":            { priority: 3, maxTokens: 80, description: "Data Model (ERD)" },
-    "lingkup":                { priority: 3, maxTokens: 40, description: "Lingkup Proyek" },
-    "jadwal":                 { priority: 3, maxTokens: 40, description: "Jadwal Proyek" },
-    "sumberDaya":             { priority: 3, maxTokens: 50, description: "Sumber Daya Proyek" },
-    "biaya":                  { priority: 3, maxTokens: 50, description: "Biaya Proyek" },
-  },
-  BASIC: {
-    kebutuhanNonFungsional: { priority: 4, maxTokens: 30, description: "Kebutuhan Non-Fungsional" },
-    risikoBisnis:           { priority: 4, maxTokens: 30, description: "Risiko Bisnis" },
-    metadata:               { priority: 4, maxTokens: 20, description: "Metadata Proyek" },
-  }
-};
+const SYSTEM_PROMPT = `
+You are a Senior IT System Analyst for Direktorat Jenderal Bea dan Cukai (DJBC) Indonesia.
+Analyze the document and extract structured project data for CEISA 4.0 IT procurement documentation.
+
+OUTPUT PRIORITY — write in this exact order, stop cleanly if token limit is near:
+TIER 1 (CRITICAL — always complete ALL of these first, never skip any):
+  nama, latarBelakang, masalahIsu, asIsToBe, kebutuhanFungsional, kebutuhanNonFungsional, actors, useCases, risikoBisnis
+TIER 2 (IMPORTANT — write after Tier 1):
+  pengampu, unitPenanggungJawab, namaPIC, kontakPIC, targetPenyelesaian, targetOutcome, bia, detectedPeople
+TIER 3 (OPTIONAL — only if tokens remain):
+  outcomeKeluaran, businessValue, alurBisnisProses, brdProcessAnalysis, fsdLinks, mermaid
+
+EXTRACTION RULES:
+- nama: the full official title of the document or project. Look for: judul dokumen, nama proyek, nama kegiatan,
+  nama modul, nama sistem — typically found in the document header, cover page, or first paragraph.
+  If multiple titles found, use the most specific/complete one. NEVER leave empty.
+- latarBelakang: summarize the background and urgency in MAX 2 sentences. Be concise.
+  Look for: latar belakang, pendahuluan, dasar hukum, konteks, sejarah, urgensi.
+  If not explicitly labeled, infer from the opening paragraphs. NEVER leave empty.
+- masalahIsu: summarize the core problems or pain points in MAX 2 sentences. Be concise.
+  Look for: masalah, isu, kendala, gap, permasalahan, hambatan, tantangan.
+  If not explicitly labeled, infer from context. NEVER leave empty.
+- asIsToBe: min 5 items comparing current state vs proposed state.
+  IMPORTANT: if the document does not have an explicit As-Is/To-Be section, INFER it from:
+  (a) problems described → those are the As-Is conditions
+  (b) goals/requirements stated → those are the To-Be conditions
+  (c) any mention of manual processes → As-Is; automated system → To-Be
+  ALWAYS produce at least 5 items by inferring. NEVER return an empty array.
+- actors: 7-10 items — every human role, system, external service interacting with the system
+  type: GUI=human via browser, Protocol=system-to-system, API=internal service
+- useCases: 8-10 items only — top use cases; name as "Verb Noun" in Indonesian
+  transactions: Simple=1-3 steps, Average=4-7, Complex=8+
+- kebutuhanFungsional: 8-10 items only, format "Sistem harus mampu [aksi] [objek] [kualifikasi]"
+  prioritas: Mandatory|High|Medium|Low
+- kebutuhanNonFungsional: 5 items — Security, Performance, Availability, Scalability, Compliance
+- risikoBisnis: min 5 items; integration points, manual processes, regulatory items each = 1 risk
+- bia: Critical→RTO:1h RPO:1h, High→RTO:4h RPO:4h, Medium→RTO:8h RPO:24h, Low→RTO:24h RPO:48h
+- mermaid: max 12 nodes total per diagram, double quotes only, no semicolons
+  processFlow=flowchart TD top 8 steps, useCaseDiagram=flowchart LR top 8 UCs, erd=top 5 entities
+  JSON-encode: newlines as \n, inner quotes as \"
+
+MINIMUMS: actors≥7, useCases≥8, kebutuhanFungsional≥8, kebutuhanNonFungsional≥5, risikoBisnis≥5, asIsToBe≥5
+
+OUTPUT RULES:
+1. Return ONLY pure JSON — no markdown, no backticks, start { end }
+2. All strings properly JSON-escaped
+3. Arrays never null — use []
+4. TIER 1 fields MUST appear first in the JSON output
+
+OUTPUT SCHEMA (in output order):
+{
+  "nama": "string — full official project/document title, NEVER empty",
+  "latarBelakang": "string — max 2 sentences, concise background summary, NEVER empty",
+  "masalahIsu": "string — max 2 sentences, concise problem summary, NEVER empty",
+  "asIsToBe": [ { "id": "1", "factor": "string", "asIs": "string", "toBe": "string" } ],
+  "kebutuhanFungsional": [ { "id": "FR-01", "deskripsi": "Sistem harus mampu ...", "prioritas": "Mandatory|High|Medium|Low" } ],
+  "kebutuhanNonFungsional": [ { "id": "NFR-01", "kategori": "Security|Performance|Availability|Scalability|Compliance|Usability|Maintainability", "deskripsi": "string" } ],
+  "actors": [ { "id": "1", "name": "string", "type": "GUI|Protocol|API", "desc": "string" } ],
+  "useCases": [ { "id": "1", "subSystem": "string", "name": "string", "transactions": 5, "actorRef": "string", "preCond": "string", "postCond": "string" } ],
+  "risikoBisnis": [ { "id": "R-01", "risk": "string", "impact": "string", "mitigasi": "string", "level": "Tinggi|Sedang|Rendah" } ],
+  "pengampu": "string",
+  "unitPenanggungJawab": "string",
+  "namaPIC": "string",
+  "kontakPIC": "string",
+  "targetPenyelesaian": "YYYY-MM-DD or empty",
+  "targetOutcome": "string",
+  "bia": { "operasional": "Critical|High|Medium|Low", "finansial": "Critical|High|Medium|Low", "reputasi": "Critical|High|Medium|Low", "hukum": "Critical|High|Medium|Low", "rto": "string", "rpo": "string" },
+  "detectedPeople": [ { "name": "string", "role": "string" } ],
+  "brdProcessAnalysis": { "modul": "string", "subModul": "string", "eaMapping": "string", "notes": "string" },
+  "fsdLinks": { "diagrams": "URL or null", "mockups": "URL or null", "repo": "URL or null" },
+  "outcomeKeluaran": "string",
+  "businessValue": "string",
+  "alurBisnisProses": "string",
+  "mermaid": { "processFlow": "string", "useCaseDiagram": "string", "erd": "string" }
+}
+`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Shared Claude API caller
@@ -354,9 +362,8 @@ const callClaude = async (apiKey, { model, maxTokens, system, userMessage }) => 
     const err = await response.json().catch(() => null);
     console.error(`❌ Claude API ${response.status}:`, JSON.stringify(err, null, 2));
     const msg = err?.error?.message || response.statusText;
-    // 500 + large payload = token overflow; shrink and surface clearly
     if (response.status === 500) {
-      throw new Error(`Server error (500) — request mungkin terlalu besar. Coba dokumen yang lebih pendek, atau pecah TOR menjadi beberapa bagian. Detail: ${msg}`);
+      throw new Error(`Server error (500) — request mungkin terlalu besar. Detail: ${msg}`);
     }
     throw new Error(`HTTP ${response.status}: ${msg}`);
   }
@@ -368,12 +375,7 @@ const callClaude = async (apiKey, { model, maxTokens, system, userMessage }) => 
     .join("\n");
 
   if (!text) throw new Error("Claude returned an empty response.");
-  return { 
-    text, 
-    usage: data.usage,
-    model: model,
-    stop_reason: data.stop_reason  // track if truncated
-  };
+  return { text, usage: data.usage };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -386,7 +388,7 @@ const triageDocument = async (apiKey, skeleton) => {
     model:       TRIAGE_MODEL,
     maxTokens:   TRIAGE_MAX_TOKENS,
     system:      TRIAGE_SYSTEM_PROMPT,
-    userMessage: skeleton,
+    userMessage: `Identify relevant pages in this document skeleton:\n\n${skeleton}`,
   });
 
   console.log(`✅ Triage done. Input: ${usage?.input_tokens} tok, Output: ${usage?.output_tokens} tok`);
@@ -404,27 +406,30 @@ const triageDocument = async (apiKey, skeleton) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  PASS 2 — Deep Analysis  (Haiku - Ultra-Efficient for $1 Budget)
+//  PASS 2 — Deep Analysis  (Opus)
 // ─────────────────────────────────────────────────────────────────────────────
 const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
-  // Aggressive truncation: target ~10k chars max to stay within 512 output token limit
-  // 1,200 input tokens ≈ 4,800 chars + overhead = ~5,000 char input budget
-  const ATTEMPT_LIMITS = [10_000, 6_000, 3_000];  // Aggressive reduction for $1 budget
+  // ✅ Tier 1: 30K input TPM (~120K chars). Retry with smaller doc on 500.
+  const ATTEMPT_LIMITS = [80_000, 50_000, 30_000];
 
   for (let attempt = 0; attempt < ATTEMPT_LIMITS.length; attempt++) {
     const maxChars = ATTEMPT_LIMITS[attempt];
     let doc = documentText;
 
     if (doc.length > maxChars) {
-      console.warn(`⚠️ [Attempt ${attempt + 1}] Truncating ${doc.length.toLocaleString()} → ${maxChars.toLocaleString()} chars for $1 budget`);
+      console.warn(`⚠️ [Attempt ${attempt + 1}] Truncating ${doc.length.toLocaleString()} → ${maxChars.toLocaleString()} chars`);
       doc = doc.substring(0, maxChars) +
-        "\n\n[Dokumen dipotong untuk menjaga budget $1/dokumen. Analisis berdasarkan konten teratas.]";
+        "\n\n[Dokumen dipotong karena terlalu panjang. Analisis berdasarkan konten di atas.]";
     }
 
-    console.log(`📄 [Attempt ${attempt + 1}] Sending ${doc.length.toLocaleString()} chars to Haiku (max ${ANALYSIS_MAX_TOKENS} output tokens)`);
+    console.log(`📄 [Attempt ${attempt + 1}] Sending ${doc.length.toLocaleString()} chars to Opus`);
 
     const userMessage = [
+      "Analyze the following document content thoroughly.",
+      "Extract ALL information into the JSON structure defined in your instructions.",
+      "Be exhaustive — infer anything not explicitly stated but reasonably derivable from context.",
       contextNote,
+      "\n\nDOCUMENT CONTENT:\n\n",
       doc,
     ].filter(Boolean).join("\n");
 
@@ -436,18 +441,17 @@ const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
         userMessage,
       });
 
-      console.log(`✅ Haiku done. Input: ${usage?.input_tokens?.toLocaleString()} tok, Output: ${usage?.output_tokens?.toLocaleString()} tok (Est. cost: $${((usage?.input_tokens * 0.80 + usage?.output_tokens * 4.0) / 1_000_000).toFixed(4)})`);
+      console.log(`✅ Opus done. Input: ${usage?.input_tokens?.toLocaleString()} tok, Output: ${usage?.output_tokens?.toLocaleString()} tok (Est. cost: $${((usage?.input_tokens * 3 + usage?.output_tokens * 15) / 1_000_000).toFixed(4)})`);
       return { text, usage };
 
     } catch (err) {
       const is500 = err.message.includes("500") || err.message.includes("terlalu besar");
       const isLast = attempt === ATTEMPT_LIMITS.length - 1;
-
       if (is500 && !isLast) {
-        console.warn(`⚠️ 500 error on attempt ${attempt + 1} — retrying with smaller document...`);
-        continue; // try next smaller tier
+        console.warn(`⚠️ 500 on attempt ${attempt + 1} — retrying with smaller document...`);
+        continue;
       }
-      throw err; // rethrow on final attempt or non-500 errors
+      throw err;
     }
   }
 };
@@ -477,19 +481,15 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
       notify(`⚡ Pass 1: Scanning ${pages.length} pages with Haiku to find relevant sections...`);
 
       const skeleton = pages
-        .slice(0, 30)  // Limit to first 30 pages only
-        .map((text, i) => `[${i + 1}]${text.substring(0, 100)}`)
-        .join("\n");
+        .map((text, i) => `[Page ${i + 1}]\n${text.substring(0, 300)}`)
+        .join("\n\n---\n\n");
 
       const triage = await triageDocument(apiKey, skeleton);
       triageUsage  = triage.usage;
 
       log.push({
-        model:        TRIAGE_MODEL,
-        pass:         "triage",
-        status:       "Success",
-        inputTokens:  triage.usage?.input_tokens,
-        outputTokens: triage.usage?.output_tokens,
+        model: TRIAGE_MODEL, pass: "triage", status: "Success",
+        inputTokens: triage.usage?.input_tokens, outputTokens: triage.usage?.output_tokens,
       });
 
       if (triage.map) {
@@ -508,12 +508,9 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
         const sorted = [...relevant].filter(n => n >= 1 && n <= pages.length).sort((a, b) => a - b);
         selectedPages = sorted;
 
-        const minPages    = 5;
-        const maxFraction = 0.80;
-
-        if (sorted.length >= minPages && sorted.length < pages.length * maxFraction) {
+        if (sorted.length >= 5 && sorted.length < pages.length * 0.80) {
           documentToAnalyze = sorted.map(n => `=== PAGE ${n} ===\n${pages[n - 1]}`).join("\n\n");
-          contextNote = `Note: This is a filtered excerpt. Pages analyzed: ${sorted.join(", ")} out of ${pages.length} total. Selected by preliminary triage scan.`;
+          contextNote = `Note: Filtered excerpt. Pages analyzed: ${sorted.join(", ")} of ${pages.length} total.`;
           notify(`✅ Triage complete. Selected ${sorted.length}/${pages.length} relevant pages.`);
         } else {
           notify(`ℹ️ Triage selected ${sorted.length}/${pages.length} pages — using full document for thoroughness.`);
@@ -521,86 +518,30 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
         }
       }
     } else {
-      notify("ℹ️ Document is short — skipping triage, sending full text to Haiku.");
+      notify("ℹ️ Document is short — skipping triage, sending full text to Opus.");
     }
 
     // ── PASS 2: Deep Analysis ─────────────────────────────────────────────
-    notify(`🧠 Pass 2: Deep analysis with Claude Haiku (max $1 budget)...`);
+    notify(`🧠 Pass 2: Deep analysis with Claude Opus (max $1 budget)...`);
     const analysis = await analyzeDocument(apiKey, documentToAnalyze, contextNote);
     analysisUsage  = analysis.usage;
 
     log.push({
-      model:        ANALYSIS_MODEL,
-      pass:         "analysis",
-      status:       "Success",
-      inputTokens:  analysis.usage?.input_tokens,
-      outputTokens: analysis.usage?.output_tokens,
+      model: ANALYSIS_MODEL, pass: "analysis", status: "Success",
+      inputTokens: analysis.usage?.input_tokens, outputTokens: analysis.usage?.output_tokens,
     });
 
     const parsed = parseAIResponse(analysis.text);
 
-    // ── Detailed token breakdown by field priority ─────────────────────────
-    const fieldTokenBreakdown = {};
-    
-    // CRITICAL fields (80% focus)
-    fieldTokenBreakdown['kebutuhanFungsional'] = Math.round(
-      (parsed.kebutuhanFungsional?.length || 0) * 50 + 200
-    );
-    fieldTokenBreakdown['useCases'] = Math.round(
-      (parsed.useCases?.length || 0) * 40 + 150
-    );
-    fieldTokenBreakdown['actors'] = Math.round(
-      (parsed.actors?.length || 0) * 30 + 100
-    );
-    fieldTokenBreakdown['mermaid.processFlow'] = Math.round(
-      (parsed.mermaid?.processFlow?.length || 0) / 20 + 100
-    );
-    fieldTokenBreakdown['mermaid.useCaseDiagram'] = Math.round(
-      (parsed.mermaid?.useCaseDiagram?.length || 0) / 20 + 80
-    );
-    fieldTokenBreakdown['asIsToBe'] = Math.round(
-      (parsed.asIsToBe?.length || 0) * 25 + 100
-    );
-    
-    // HIGH priority fields
-    fieldTokenBreakdown['kebutuhanNonFungsional'] = Math.round(
-      (parsed.kebutuhanNonFungsional?.length || 0) * 20 + 50
-    );
-    fieldTokenBreakdown['mermaid.erd'] = Math.round(
-      (parsed.mermaid?.erd?.length || 0) / 25 + 80
-    );
-    
-    // MEDIUM priority fields
-    fieldTokenBreakdown['risikoBisnis'] = Math.round(
-      (parsed.risikoBisnis?.length || 0) * 15 + 30
-    );
-    
-    // BASIC metadata (3% tokens)
-    fieldTokenBreakdown['metadata'] = 50;
-
     return {
-      success:       true,
-      data:          parsed,
-      usedModel:     ANALYSIS_MODEL,
-      triageModel:   pages?.length > 10 ? TRIAGE_MODEL : null,
-      selectedPages,
-      totalPages:    pages?.length ?? null,
+      success: true, data: parsed,
+      usedModel: ANALYSIS_MODEL,
+      triageModel: pages?.length > 10 ? TRIAGE_MODEL : null,
+      selectedPages, totalPages: pages?.length ?? null,
       usage: {
-        triage:       triageUsage,
-        analysis:     analysisUsage,
+        triage: triageUsage, analysis: analysisUsage,
         input_tokens:  (triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0),
         output_tokens: (triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0),
-        total_tokens:  (triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0) + 
-                       (triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0),
-        fieldBreakdown: fieldTokenBreakdown,  // Per-field token allocation
-        costEstimate: {
-          haiku_input:  ((triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0)) * 0.80 / 1_000_000,
-          haiku_output: ((triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0)) * 4.0 / 1_000_000,
-          total_usd:    (
-            ((triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0)) * 0.80 +
-            ((triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0)) * 4.0
-          ) / 1_000_000,
-        }
       },
       log,
     };
@@ -610,7 +551,7 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
 
     let friendlyMsg = error.message;
     if      (error.message.includes("401"))          friendlyMsg = "API key tidak valid. Periksa VITE_ANTHROPIC_API_KEY di .env.local Anda.";
-    else if (error.message.includes("403"))          friendlyMsg = "API key tidak memiliki izin model ini. Pastikan key memiliki akses Claude Haiku.";
+    else if (error.message.includes("403"))          friendlyMsg = "API key tidak memiliki izin model ini.";
     else if (error.message.includes("429"))          friendlyMsg = "Rate limit tercapai. Tunggu beberapa menit lalu coba lagi.";
     else if (error.message.includes("529") || error.message.includes("503"))
                                                      friendlyMsg = "Server Claude sedang sibuk. Coba lagi dalam beberapa saat.";
@@ -619,10 +560,8 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
     log.push({ model: ANALYSIS_MODEL, pass: "analysis", status: "Failed", error: friendlyMsg });
 
     return {
-      success:   false,
-      data:      null,
-      usedModel: ANALYSIS_MODEL,
-      log,
+      success: false, data: null,
+      usedModel: ANALYSIS_MODEL, log,
       error: { ...error, message: friendlyMsg },
     };
   }
