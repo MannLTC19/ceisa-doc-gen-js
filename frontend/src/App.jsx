@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Bot, Download, FileText, Settings, Shield,
   Users, Zap, Loader2, ChevronRight, Upload,
-  X, CheckCircle2, AlertCircle, Cpu, Sparkles,
+  X, CheckCircle2, AlertCircle, Cpu, Sparkles, LogOut,
 } from 'lucide-react';
 
 import { TabKajian }     from './components/TabKajian.jsx';
@@ -10,6 +10,7 @@ import { TabPenelitian } from './components/TabPenelitian.jsx';
 import { TabBRD }        from './components/TabBRD.jsx';
 import { TabFSD }        from './components/TabFSD.jsx';
 import { TabCharter }    from './components/TabCharter.jsx';
+import { TabEntries }    from './components/TabEntries.jsx';
 
 import {
   ROLE_RATES_2023,
@@ -23,6 +24,7 @@ import {
 import { processDocumentWithAI }   from './utils/aiProcessor.js';
 import { extractDocumentPages }    from './utils/fileHelpers.js';
 import { generateExcelDocument }   from './utils/excelGenerator.js';
+import { supabase }                from './utils/supabase.js';
 
 const TABS = [
   { id: 'kajian',     label: 'Kajian Kebutuhan', short: 'Kajian',     icon: FileText,  step: '01' },
@@ -30,6 +32,7 @@ const TABS = [
   { id: 'brd',        label: 'BRD',               short: 'BRD',        icon: Users,     step: '03' },
   { id: 'fsd',        label: 'FSD',               short: 'FSD',        icon: Settings,  step: '04' },
   { id: 'charter',    label: 'Project Charter',   short: 'Charter',    icon: Shield,    step: '05' },
+  { id: 'entries',    label: 'Entries',           short: 'Entries',    icon: FileText,  step: '06' },
 ];
 
 // ─── Initial project state factory ───────────────────────────────────────────
@@ -213,7 +216,7 @@ const formatAIArray = (arr, prefix) => {
 };
 
 // ─── App ─────────────────────────────────────────────────────────────────────
-export default function App() {
+export default function App({ onLogout, user }) {
   const [activeTab,    setActiveTab]    = useState('kajian');
   const [uploadStatus, setUploadStatus] = useState(STATUS.IDLE);
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -221,8 +224,148 @@ export default function App() {
   const [aiMeta,       setAiMeta]       = useState({ usedModel: null, usage: null, log: [] });
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
   const [project,      setProject]      = useState(makeInitialProject);
+  const [syncStatus,   setSyncStatus]   = useState('idle');
+  const [syncMessage,  setSyncMessage]  = useState('');
+  const [userRole,     setUserRole]     = useState('user');
 
   const isLoading = uploadStatus === STATUS.EXTRACTING || uploadStatus === STATUS.ANALYZING;
+
+  // ─── Supabase profile storage ───────────────────────────────────────────
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let isMounted = true;
+
+    const loadProjectFromCloud = async () => {
+      setSyncStatus('loading');
+      setSyncMessage('Memuat data proyek dari cloud...');
+
+      const { data, error } = await supabase
+        .from('user_projects')
+        .select('project_data')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      if (error) {
+        setSyncStatus('error');
+        setSyncMessage(`Gagal memuat cloud profile: ${error.message}`);
+        return;
+      }
+
+      if (data?.project_data) {
+        setProject(data.project_data);
+        setSyncMessage('Data cloud berhasil dimuat.');
+      } else {
+        setSyncMessage('Belum ada data cloud. Gunakan Save Cloud untuk menyimpan.');
+      }
+
+      setSyncStatus('ready');
+    };
+
+    loadProjectFromCloud();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const loadRole = async () => {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        setUserRole('user');
+        return;
+      }
+
+      setUserRole(data?.role === 'admin' ? 'admin' : 'user');
+    };
+
+    loadRole();
+  }, [user?.id]);
+
+  const handleSaveCloud = useCallback(async () => {
+    if (!user?.id) return;
+
+    setSyncStatus('saving');
+    setSyncMessage('Menyimpan data ke cloud...');
+
+    const { error } = await supabase
+      .from('user_projects')
+      .upsert(
+        {
+          user_id: user.id,
+          email: user.email ?? null,
+          project_data: project,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+    if (error) {
+      setSyncStatus('error');
+      setSyncMessage(`Gagal menyimpan cloud profile: ${error.message}`);
+      return;
+    }
+
+    setSyncStatus('ready');
+    setSyncMessage('Data berhasil disimpan ke cloud.');
+  }, [project, user?.email, user?.id]);
+
+  const saveAnalysisEntry = useCallback(async ({ file, extracted, aiResult, aiData }) => {
+    if (!user?.id) return;
+
+    const rawText = extracted?.fullText || '';
+    const maxChars = 200000;
+    const wasTruncated = rawText.length > maxChars;
+
+    const acquiredData = {
+      extractedText: wasTruncated ? rawText.slice(0, maxChars) : rawText,
+      extractedTextLength: rawText.length,
+      extractedTextTruncated: wasTruncated,
+      selectedPages: aiResult?.selectedPages || [],
+      parsedPages: extracted?.parsedPages || 0,
+      totalPages: extracted?.totalPages || 0,
+    };
+
+    const { data, error } = await supabase
+      .from('analysis_entries')
+      .insert({
+        user_id: user.id,
+        email: user.email ?? null,
+        entry_title: project?.nama || file?.name || 'Untitled Entry',
+        entry_notes: '',
+        source_file_name: file?.name ?? 'unknown',
+        total_pages: extracted?.totalPages ?? null,
+        parsed_pages: extracted?.parsedPages ?? null,
+        acquired_data: acquiredData,
+        ai_output: aiData,
+        usage_meta: {
+          usedModel: aiResult?.usedModel || null,
+          triageModel: aiResult?.triageModel || null,
+          usage: aiResult?.usage || null,
+        },
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      setSyncStatus('error');
+      setSyncMessage(`Data hasil akuisisi gagal disimpan: ${error.message}`);
+      return;
+    }
+
+    setSyncStatus('ready');
+    setSyncMessage(`Data hasil akuisisi tersimpan sebagai 1 entry (ID: ${data.id}).`);
+  }, [project?.nama, user?.email, user?.id]);
 
   // ─── Derived calculations ───────────────────────────────────────────────
   const calc = useMemo(() => {
@@ -403,13 +546,20 @@ export default function App() {
       setUploadStatus(STATUS.DONE);
       setActiveTab('kajian');
 
+      await saveAnalysisEntry({
+        file,
+        extracted,
+        aiResult: result,
+        aiData: ai,
+      });
+
     } catch (err) {
       console.error('Upload/AI Error:', err);
       setUploadError(err.message || 'Terjadi kesalahan yang tidak diketahui.');
       setUploadStatus(STATUS.ERROR);
       setUploadedFile(null);
     }
-  }, []);
+  }, [saveAnalysisEntry]);
 
   // ─── Array CRUD helpers ─────────────────────────────────────────────────
   const handleUpdateArray = useCallback((name, id, field, value) => {
@@ -636,6 +786,9 @@ export default function App() {
 
           {/* Right actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <span className={`kt-badge ${userRole === 'admin' ? 'kt-badge-warning' : 'kt-badge-info'}`}>
+              Role: {userRole}
+            </span>
 
             {/* Upload status pill */}
             {uploadStatus === STATUS.DONE && uploadedFile && (
@@ -664,6 +817,26 @@ export default function App() {
               <Download style={{ width: 14, height: 14 }} />
               Export Excel
             </button>
+
+            <button
+              onClick={handleSaveCloud}
+              className="kt-btn kt-btn-light kt-btn-sm"
+              title="Simpan data proyek ke Supabase"
+              disabled={syncStatus === 'saving' || syncStatus === 'loading'}
+            >
+              {syncStatus === 'saving' ? 'Saving...' : 'Save Cloud'}
+            </button>
+
+            {typeof onLogout === 'function' && (
+              <button
+                onClick={onLogout}
+                className="kt-btn kt-btn-light kt-btn-sm"
+                title={user?.email ? `Logout ${user.email}` : 'Logout'}
+              >
+                <LogOut style={{ width: 14, height: 14 }} />
+                Logout
+              </button>
+            )}
           </div>
         </header>
 
@@ -697,6 +870,15 @@ export default function App() {
               >
                 <X style={{ width: 14, height: 14 }} />
               </button>
+            </div>
+          )}
+
+          {!!syncMessage && (
+            <div
+              className={`kt-notice ${syncStatus === 'error' ? 'kt-notice-danger' : 'kt-notice-primary'}`}
+              style={{ marginBottom: 20 }}
+            >
+              <span style={{ flex: 1, fontSize: 12.5 }}>{syncMessage}</span>
             </div>
           )}
 
@@ -813,6 +995,9 @@ export default function App() {
               )}
               {activeTab === 'charter' && (
                 <TabCharter project={project} setProject={setProject} calc={calc} />
+              )}
+              {activeTab === 'entries' && (
+                <TabEntries user={user} userRole={userRole} />
               )}
             </div>
           )}
