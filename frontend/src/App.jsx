@@ -24,9 +24,6 @@ import { processDocumentWithAI }   from './utils/aiProcessor.js';
 import { extractDocumentPages }    from './utils/fileHelpers.js';
 import { generateExcelDocument }   from './utils/excelGenerator.js';
 
-// ─── Config ──────────────────────────────────────────────────────────────────
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
 const TABS = [
   { id: 'kajian',     label: 'Kajian Kebutuhan', short: 'Kajian',     icon: FileText,  step: '01' },
   { id: 'penelitian', label: 'Penelitian (UCP)',  short: 'Penelitian', icon: Zap,       step: '02' },
@@ -298,12 +295,6 @@ export default function App() {
     e.target.value = '';
     if (!file) return;
 
-    if (!API_KEY) {
-      setUploadError('VITE_ANTHROPIC_API_KEY is not set. Add it to your .env.local file and restart the dev server.');
-      setUploadStatus(STATUS.ERROR);
-      return;
-    }
-
     setUploadError(null);
     setUploadedFile(null);
     setUploadStatus(STATUS.EXTRACTING);
@@ -321,7 +312,6 @@ export default function App() {
       // Step 2 — two-pass AI analysis
       setUploadStatus(STATUS.ANALYZING);
       const result = await processDocumentWithAI(
-        API_KEY,
         extracted,                          // pass full page object, not just string
         (msg) => console.log('[AI]', msg),  // progress logger
       );

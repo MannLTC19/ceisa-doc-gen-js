@@ -7,7 +7,7 @@
 
 const TRIAGE_MODEL   = "claude-haiku-4-5-20251001";
 const ANALYSIS_MODEL = "claude-opus-4-6";
-const CLAUDE_API_URL = "/anthropic/v1/messages"; // proxied via vite.config.js
+const CLAUDE_API_URL = "/api/anthropic/v1/messages";
 
 const TRIAGE_MAX_TOKENS   = 1024;
 const ANALYSIS_MAX_TOKENS = 7000;  // ✅ Tier 1 hard limit: 8K output/min — stay under
@@ -341,14 +341,11 @@ OUTPUT SCHEMA (in output order):
 // ─────────────────────────────────────────────────────────────────────────────
 //  Shared Claude API caller
 // ─────────────────────────────────────────────────────────────────────────────
-const callClaude = async (apiKey, { model, maxTokens, system, userMessage }) => {
+const callClaude = async ({ model, maxTokens, system, userMessage }) => {
   const response = await fetch(CLAUDE_API_URL, {
     method: "POST",
     headers: {
-      "Content-Type":       "application/json",
-      "x-api-key":          apiKey,
-      "anthropic-version":  "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model,
@@ -381,10 +378,10 @@ const callClaude = async (apiKey, { model, maxTokens, system, userMessage }) => 
 // ─────────────────────────────────────────────────────────────────────────────
 //  PASS 1 — Triage  (Haiku)
 // ─────────────────────────────────────────────────────────────────────────────
-const triageDocument = async (apiKey, skeleton) => {
+const triageDocument = async (skeleton) => {
   console.log("⚡ Pass 1 — Triage with Haiku...");
 
-  const { text, usage } = await callClaude(apiKey, {
+  const { text, usage } = await callClaude({
     model:       TRIAGE_MODEL,
     maxTokens:   TRIAGE_MAX_TOKENS,
     system:      TRIAGE_SYSTEM_PROMPT,
@@ -408,7 +405,7 @@ const triageDocument = async (apiKey, skeleton) => {
 // ─────────────────────────────────────────────────────────────────────────────
 //  PASS 2 — Deep Analysis  (Opus)
 // ─────────────────────────────────────────────────────────────────────────────
-const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
+const analyzeDocument = async (documentText, contextNote = "") => {
   // ✅ Tier 1: 30K input TPM (~120K chars). Retry with smaller doc on 500.
   const ATTEMPT_LIMITS = [80_000, 50_000, 30_000];
 
@@ -434,7 +431,7 @@ const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
     ].filter(Boolean).join("\n");
 
     try {
-      const { text, usage } = await callClaude(apiKey, {
+      const { text, usage } = await callClaude({
         model:       ANALYSIS_MODEL,
         maxTokens:   ANALYSIS_MAX_TOKENS,
         system:      SYSTEM_PROMPT,
@@ -459,7 +456,7 @@ const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
 // ─────────────────────────────────────────────────────────────────────────────
 //  MAIN EXPORT — processDocumentWithAI
 // ─────────────────────────────────────────────────────────────────────────────
-export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress) => {
+export const processDocumentWithAI = async (fileTextOrPages, onProgress) => {
   const notify = (msg) => { console.log(msg); onProgress?.(msg); };
 
   const isPagedInput = fileTextOrPages && typeof fileTextOrPages === "object" && Array.isArray(fileTextOrPages.pages);
@@ -484,7 +481,7 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
         .map((text, i) => `[Page ${i + 1}]\n${text.substring(0, 300)}`)
         .join("\n\n---\n\n");
 
-      const triage = await triageDocument(apiKey, skeleton);
+      const triage = await triageDocument(skeleton);
       triageUsage  = triage.usage;
 
       log.push({
@@ -523,7 +520,7 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
 
     // ── PASS 2: Deep Analysis ─────────────────────────────────────────────
     notify(`🧠 Pass 2: Deep analysis with Claude Opus...`);
-    const analysis = await analyzeDocument(apiKey, documentToAnalyze, contextNote);
+    const analysis = await analyzeDocument(documentToAnalyze, contextNote);
     analysisUsage  = analysis.usage;
 
     log.push({
@@ -550,7 +547,7 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
     console.error("❌ Claude API Error:", error.message);
 
     let friendlyMsg = error.message;
-    if      (error.message.includes("401"))          friendlyMsg = "API key tidak valid. Periksa VITE_ANTHROPIC_API_KEY di .env.local Anda.";
+    if      (error.message.includes("401"))          friendlyMsg = "Backend API key tidak valid. Periksa ANTHROPIC_API_KEY di environment backend.";
     else if (error.message.includes("403"))          friendlyMsg = "API key tidak memiliki izin model ini.";
     else if (error.message.includes("429"))          friendlyMsg = "Rate limit tercapai. Tunggu beberapa menit lalu coba lagi.";
     else if (error.message.includes("529") || error.message.includes("503"))

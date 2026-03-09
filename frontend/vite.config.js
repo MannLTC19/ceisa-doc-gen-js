@@ -8,10 +8,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/anthropic': {
-        target:       'https://api.anthropic.com',
+      // proxy front‑end API calls during development to the backend service
+      '/api': {
+        target: 'http://localhost:5000',
         changeOrigin: true,
-        rewrite:      (path) => path.replace(/^\/anthropic/, ''),
       },
     },
   },

@@ -3,33 +3,21 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "dev": "npm run dev --workspace=frontend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "npm run build --workspace=frontend",
+    "start-backend": "npm run start --workspace=backend",
+    "lint": "npm run lint --workspace=frontend"
   },
-  "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "docx": "^9.5.3",
-    "exceljs": "^4.4.0",
-    "file-saver": "^2.0.5",
-    "lucide-react": "^0.575.0",
-    "mammoth": "^1.11.0",
-    "mermaid": "^11.12.3",
-    "pdfjs-dist": "^5.5.207",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
-    "eslint": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
-    "globals": "^16.5.0",
-    "vite": "^7.3.1"
+    "concurrently": "^9.2.1"
   }
 }

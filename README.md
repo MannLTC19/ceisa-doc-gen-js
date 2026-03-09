@@ -1,16 +1,63 @@
-# React + Vite
+# CEISA Doc Generator (Frontend + Backend)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Project ini sudah dipisah menjadi 2 package:
 
-Currently, two official plugins are available:
+- `frontend`: aplikasi React + Vite
+- `backend`: API proxy Express untuk request ke Anthropic
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Struktur
 
-## React Compiler
+```text
+.
+├─ frontend/
+│  ├─ src/
+│  └─ package.json
+├─ backend/
+│  ├─ src/server.js
+│  └─ package.json
+└─ package.json (workspace root)
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Setup
 
-## Expanding the ESLint configuration
+1. Install dependencies dari root:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm install
+```
+
+2. Siapkan environment backend:
+
+```bash
+copy backend\\.env.example backend\\.env
+```
+
+Lalu isi `ANTHROPIC_API_KEY` di `backend/.env`.
+
+## Menjalankan
+
+Jalankan backend:
+
+```bash
+npm run dev:backend
+```
+
+Jalankan frontend (terminal terpisah):
+
+```bash
+npm run dev:frontend
+```
+
+Atau jalankan keduanya sekaligus (1 terminal):
+
+```bash
+npm run dev:all
+```
+
+Frontend akan call endpoint `/api/anthropic/v1/messages` dan diproxy ke backend saat development.
+
+## Build
+
+```bash
+npm run build
+```
