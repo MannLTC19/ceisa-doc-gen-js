@@ -4,10 +4,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as pdfjsLib from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
 
-// Use the locally bundled worker — version always matches, no CDN needed
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// Let Vite instantiate and bundle the worker to avoid fragile @fs dynamic imports.
+pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker();
 
 const MAX_PAGES = 150; // Hard cap — beyond this even the triage skeleton gets huge
 

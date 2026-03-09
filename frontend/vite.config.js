@@ -3,9 +3,6 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  optimizeDeps: {
-    include: ['pdfjs-dist'],
-  },
   server: {
     proxy: {
       // proxy front‑end API calls during development to the backend service

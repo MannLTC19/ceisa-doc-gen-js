@@ -1,6 +1,15 @@
-import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load local backend env file first, then fallback to default .env.
+dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -14,7 +23,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.post('/api/anthropic/v1/messages', async (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({
