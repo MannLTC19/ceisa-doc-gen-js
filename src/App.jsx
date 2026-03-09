@@ -221,7 +221,7 @@ export default function App() {
   const [uploadStatus, setUploadStatus] = useState(STATUS.IDLE);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadError,  setUploadError]  = useState(null);
-  const [aiMeta,       setAiMeta]       = useState({ usedModel: null, usage: null, log: [] });
+  const [aiMeta,       setAiMeta]       = useState({ usedModel: null, enrichModel: null, usage: null, log: [] });
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
   const [project,      setProject]      = useState(makeInitialProject);
 
@@ -333,6 +333,7 @@ export default function App() {
       const ai = result.data;
       setAiMeta({
         usedModel:     result.usedModel,
+        enrichModel:   result.enrichModel,
         triageModel:   result.triageModel,
         usage:         result.usage,
         selectedPages: result.selectedPages,
@@ -580,21 +581,52 @@ export default function App() {
         {/* AI model badge */}
         {sidebarOpen && (
           <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(99,102,241,0.12)',
-              border: '1px solid rgba(99,102,241,0.2)',
-              borderRadius: 7, padding: '5px 10px',
-            }}>
-              <Cpu style={{ width: 12, height: 12, color: '#a5b4fc', flexShrink: 0 }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.04em' }}>
-                Claude Opus
-              </span>
-              {aiMeta.usage && (
-                <span style={{ fontSize: 9, color: 'rgba(165,180,252,0.6)', marginLeft: 'auto' }}>
-                  {(aiMeta.usage.output_tokens || 0).toLocaleString()} tok
-                </span>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Haiku */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(99,102,241,0.08)',
+                border: '1px solid rgba(99,102,241,0.15)',
+                borderRadius: 7, padding: '4px 10px',
+              }}>
+                <Cpu style={{ width: 11, height: 11, color: '#a5b4fc', flexShrink: 0 }} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.04em' }}>Haiku · Triage</span>
+                {aiMeta.usage?.triage && (
+                  <span style={{ fontSize: 9, color: 'rgba(165,180,252,0.6)', marginLeft: 'auto' }}>
+                    {(aiMeta.usage.triage.input_tokens || 0).toLocaleString()} in
+                  </span>
+                )}
+              </div>
+              {/* Opus */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(99,102,241,0.12)',
+                border: '1px solid rgba(99,102,241,0.2)',
+                borderRadius: 7, padding: '4px 10px',
+              }}>
+                <Cpu style={{ width: 11, height: 11, color: '#a5b4fc', flexShrink: 0 }} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.04em' }}>Opus · Analysis</span>
+                {aiMeta.usage?.analysis && (
+                  <span style={{ fontSize: 9, color: 'rgba(165,180,252,0.6)', marginLeft: 'auto' }}>
+                    {(aiMeta.usage.analysis.output_tokens || 0).toLocaleString()} out
+                  </span>
+                )}
+              </div>
+              {/* Sonnet */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(99,102,241,0.08)',
+                border: '1px solid rgba(99,102,241,0.15)',
+                borderRadius: 7, padding: '4px 10px',
+              }}>
+                <Cpu style={{ width: 11, height: 11, color: '#a5b4fc', flexShrink: 0 }} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.04em' }}>Sonnet · Enrich</span>
+                {aiMeta.usage?.enrich && (
+                  <span style={{ fontSize: 9, color: 'rgba(165,180,252,0.6)', marginLeft: 'auto' }}>
+                    {(aiMeta.usage.enrich.output_tokens || 0).toLocaleString()} out
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -699,7 +731,9 @@ export default function App() {
             <div className="kt-notice" style={{ marginBottom: 20, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)' }}>
               <Sparkles style={{ width: 16, height: 16, color: '#6366f1', flexShrink: 0 }} />
               <span style={{ flex: 1, fontSize: 12.5, color: '#4f46e5' }}>
-                Analisis selesai menggunakan <strong>{aiMeta.usedModel}</strong> — {(aiMeta.usage.input_tokens || 0).toLocaleString()} input token, {(aiMeta.usage.output_tokens || 0).toLocaleString()} output token.
+                Engine: <strong>{aiMeta.usedModel}</strong>{aiMeta.enrichModel ? `+ ${aiMeta.enrichModel}` : ''}{aiMeta.triageModel ? ` + ${aiMeta.triageModel} (triage)` : ''}
+                · {(aiMeta.usage.input_tokens || 0).toLocaleString()} in / {(aiMeta.usage.output_tokens || 0).toLocaleString()} out tokens
+                {aiMeta.usage.triage && <><br/><span style={{ fontSize: 11, opacity: 0.7 }}>{aiMeta.triageModel}: {(aiMeta.usage.triage.input_tokens||0).toLocaleString()} in · {aiMeta.usedModel}: {(aiMeta.usage.analysis?.input_tokens||0).toLocaleString()} in / {(aiMeta.usage.analysis?.output_tokens||0).toLocaleString()} out · {aiMeta.enrichModel}: {(aiMeta.usage.enrich?.input_tokens||0).toLocaleString()} in / {(aiMeta.usage.enrich?.output_tokens||0).toLocaleString()} out</span></>}
               </span>
               <button
                 onClick={() => setUploadStatus(STATUS.IDLE)}
@@ -844,7 +878,7 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {aiMeta.usedModel && (
               <span style={{ fontSize: 10.5, color: 'rgba(99,102,241,0.6)', fontWeight: 600, letterSpacing: '0.04em' }}>
-                {aiMeta.usedModel}
+                {aiMeta.usedModel}{aiMeta.enrichModel ? ` + ${aiMeta.enrichModel}` : ''}
               </span>
             )}
             <span style={{ fontSize: 11, color: 'var(--kt-text-muted)', letterSpacing: '0.04em' }}>

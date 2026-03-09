@@ -1,16 +1,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  aiProcessor.js  —  Two-Pass Claude Document Analyzer for CEISA 4.0 Doc Genie
+//  aiProcessor.js  —  Three-Pass Claude Document Analyzer for CEISA 4.0 Doc Genie
 //
-//  PASS 1 — Triage  (claude-haiku-4-5, fast + cheap)
-//  PASS 2 — Deep Analysis  (claude-opus-4-6, thorough)
+//  PASS 1 — Triage      (claude-haiku-4-5,    fast + cheap)
+//  PASS 2 — Deep Analysis (claude-opus-4-6,   critical arrays only)
+//  PASS 3 — Fill & Enrich (claude-sonnet-4-6, remaining fields + mermaid)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRIAGE_MODEL   = "claude-haiku-4-5-20251001";
+const TRIAGE_MODEL  = "claude-haiku-4-5-20251001";
 const ANALYSIS_MODEL = "claude-opus-4-6";
+const ENRICH_MODEL  = "claude-sonnet-4-6";
 const CLAUDE_API_URL = "/anthropic/v1/messages"; // proxied via vite.config.js
 
 const TRIAGE_MAX_TOKENS   = 1024;
-const ANALYSIS_MAX_TOKENS = 7000;  // ✅ Tier 1 hard limit: 8K output/min — stay under
+const ANALYSIS_MAX_TOKENS = 5000;  // ✅ Parallel with Sonnet — separate 8K output bucket
+const ENRICH_MAX_TOKENS   = 5000;  // ✅ Parallel with Opus — separate 8K output bucket
 
 // ─── Raw text sanitizer ───────────────────────────────────────────────────────
 const sanitizeRawText = (text) =>
@@ -263,77 +266,100 @@ Return ONLY a raw JSON object. No markdown. No explanation. Just { }.
 // ─────────────────────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `
 You are a Senior IT System Analyst for Direktorat Jenderal Bea dan Cukai (DJBC) Indonesia.
-Analyze the document and extract structured project data for CEISA 4.0 IT procurement documentation.
+Your job: extract ONLY the critical structured arrays from this IT project document.
 
-OUTPUT PRIORITY — write in this exact order, stop cleanly if token limit is near:
-TIER 1 (CRITICAL — always complete ALL of these first, never skip any):
-  nama, latarBelakang, masalahIsu, asIsToBe, kebutuhanFungsional, kebutuhanNonFungsional, actors, useCases, risikoBisnis
-TIER 2 (IMPORTANT — write after Tier 1):
-  pengampu, unitPenanggungJawab, namaPIC, kontakPIC, targetPenyelesaian, targetOutcome, bia, detectedPeople
-TIER 3 (OPTIONAL — only if tokens remain):
-  outcomeKeluaran, businessValue, alurBisnisProses, brdProcessAnalysis, fsdLinks, mermaid
+FOCUS — extract ONLY these fields, nothing else:
+  nama, asIsToBe, kebutuhanFungsional, kebutuhanNonFungsional, actors, useCases
 
 EXTRACTION RULES:
-- nama: the full official title of the document or project. Look for: judul dokumen, nama proyek, nama kegiatan,
-  nama modul, nama sistem — typically found in the document header, cover page, or first paragraph.
-  If multiple titles found, use the most specific/complete one. NEVER leave empty.
-- latarBelakang: summarize the background and urgency in MAX 2 sentences. Be concise.
-  Look for: latar belakang, pendahuluan, dasar hukum, konteks, sejarah, urgensi.
-  If not explicitly labeled, infer from the opening paragraphs. NEVER leave empty.
-- masalahIsu: summarize the core problems or pain points in MAX 2 sentences. Be concise.
-  Look for: masalah, isu, kendala, gap, permasalahan, hambatan, tantangan.
-  If not explicitly labeled, infer from context. NEVER leave empty.
-- asIsToBe: min 5 items comparing current state vs proposed state.
-  IMPORTANT: if the document does not have an explicit As-Is/To-Be section, INFER it from:
-  (a) problems described → those are the As-Is conditions
-  (b) goals/requirements stated → those are the To-Be conditions
-  (c) any mention of manual processes → As-Is; automated system → To-Be
-  ALWAYS produce at least 5 items by inferring. NEVER return an empty array.
-- actors: 7-10 items — every human role, system, external service interacting with the system
-  type: GUI=human via browser, Protocol=system-to-system, API=internal service
-- useCases: 8-10 items only — top use cases; name as "Verb Noun" in Indonesian
-  transactions: Simple=1-3 steps, Average=4-7, Complex=8+
-- kebutuhanFungsional: 8-10 items only, format "Sistem harus mampu [aksi] [objek] [kualifikasi]"
+- nama: full official project/document title. Look for: judul, nama proyek, nama kegiatan, nama modul.
+  Use the most specific/complete title found. NEVER leave empty.
+- asIsToBe: exactly 5 items. Compare current state vs proposed state.
+  If no explicit As-Is/To-Be section exists, INFER from:
+  (a) problems described → asIs | (b) goals/requirements → toBe | (c) manual → asIs; automated → toBe
+  NEVER return empty array.
+- kebutuhanFungsional: exactly 8 items. Format: "Sistem harus mampu [aksi] [objek] [kualifikasi]"
   prioritas: Mandatory|High|Medium|Low
-- kebutuhanNonFungsional: 5 items — Security, Performance, Availability, Scalability, Compliance
-- risikoBisnis: min 5 items; integration points, manual processes, regulatory items each = 1 risk
-- bia: Critical→RTO:1h RPO:1h, High→RTO:4h RPO:4h, Medium→RTO:8h RPO:24h, Low→RTO:24h RPO:48h
-- mermaid: max 12 nodes total per diagram, double quotes only, no semicolons
-  processFlow=flowchart TD top 8 steps, useCaseDiagram=flowchart LR top 8 UCs, erd=top 5 entities
-  JSON-encode: newlines as \n, inner quotes as \"
-
-MINIMUMS: actors≥7, useCases≥8, kebutuhanFungsional≥8, kebutuhanNonFungsional≥5, risikoBisnis≥5, asIsToBe≥5
+- kebutuhanNonFungsional: exactly 5 items — one each for: Security, Performance, Availability, Scalability, Compliance
+- actors: exactly 7 items — human roles, systems, external services that interact with the system
+  type: GUI=human via browser, Protocol=system-to-system, API=internal service
+- useCases: exactly 8 items — top use cases; name as "Verb Noun" in Indonesian
+  transactions: Simple=1-3 steps, Average=4-7, Complex=8+
 
 OUTPUT RULES:
 1. Return ONLY pure JSON — no markdown, no backticks, start { end }
 2. All strings properly JSON-escaped
-3. Arrays never null — use []
-4. TIER 1 fields MUST appear first in the JSON output
+3. Arrays NEVER null — use []
 
-OUTPUT SCHEMA (in output order):
+OUTPUT SCHEMA:
 {
-  "nama": "string — full official project/document title, NEVER empty",
-  "latarBelakang": "string — max 2 sentences, concise background summary, NEVER empty",
-  "masalahIsu": "string — max 2 sentences, concise problem summary, NEVER empty",
-  "asIsToBe": [ { "id": "1", "factor": "string", "asIs": "string", "toBe": "string" } ],
-  "kebutuhanFungsional": [ { "id": "FR-01", "deskripsi": "Sistem harus mampu ...", "prioritas": "Mandatory|High|Medium|Low" } ],
-  "kebutuhanNonFungsional": [ { "id": "NFR-01", "kategori": "Security|Performance|Availability|Scalability|Compliance|Usability|Maintainability", "deskripsi": "string" } ],
+  "nama": "string",
   "actors": [ { "id": "1", "name": "string", "type": "GUI|Protocol|API", "desc": "string" } ],
   "useCases": [ { "id": "1", "subSystem": "string", "name": "string", "transactions": 5, "actorRef": "string", "preCond": "string", "postCond": "string" } ],
-  "risikoBisnis": [ { "id": "R-01", "risk": "string", "impact": "string", "mitigasi": "string", "level": "Tinggi|Sedang|Rendah" } ],
+  "asIsToBe": [ { "id": "1", "factor": "string", "asIs": "string", "toBe": "string" } ],
+  "kebutuhanFungsional": [ { "id": "FR-01", "deskripsi": "Sistem harus mampu ...", "prioritas": "Mandatory|High|Medium|Low" } ],
+  "kebutuhanNonFungsional": [ { "id": "NFR-01", "kategori": "Security|Performance|Availability|Scalability|Compliance", "deskripsi": "string" } ]
+}
+`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PASS 3 — ENRICH SYSTEM PROMPT  (Sonnet)
+// ─────────────────────────────────────────────────────────────────────────────
+const ENRICH_SYSTEM_PROMPT = `
+You are a Senior IT System Analyst for Direktorat Jenderal Bea dan Cukai (DJBC) Indonesia.
+You will receive: (1) a document, and (2) a JSON with critical fields already extracted by another analyst.
+Your job: extract the REMAINING fields only. Do NOT re-extract fields already in the provided JSON.
+
+EXTRACT ONLY these fields:
+  latarBelakang, masalahIsu, pengampu, unitPenanggungJawab, namaPIC, kontakPIC,
+  targetPenyelesaian, targetOutcome, outcomeKeluaran, businessValue, alurBisnisProses,
+  bia, detectedPeople, risikoBisnis, brdProcessAnalysis, mermaid
+
+EXTRACTION RULES:
+- latarBelakang: MAX 3 sentences. Background and urgency of the project.
+- masalahIsu: MAX 3 sentences. Core problems and pain points.
+- pengampu: unit/directorate responsible for the business process.
+- unitPenanggungJawab: IT unit responsible for implementation.
+- namaPIC: full name of the PIC/contact person.
+- kontakPIC: email or phone of PIC.
+- targetPenyelesaian: target completion date as YYYY-MM-DD, or empty string.
+- targetOutcome: the expected outcome/goal in 1-2 sentences.
+- outcomeKeluaran: specific deliverables/outputs of the project.
+- businessValue: business value and benefits in 1-2 sentences.
+- alurBisnisProses: business process flow description in 2-3 sentences.
+- bia: assess Business Impact Analysis based on operational criticality described.
+  Critical→RTO:1h RPO:1h, High→RTO:4h RPO:4h, Medium→RTO:8h RPO:24h, Low→RTO:24h RPO:48h
+- detectedPeople: scan for ANY name, jabatan, NIP, email, phone in the document.
+- risikoBisnis: 5 items — key risks, impacts, and mitigations.
+- brdProcessAnalysis: modul, subModul, eaMapping, notes — CEISA 4.0 module mapping.
+- mermaid: generate 3 diagrams. Max 10 nodes each. Double quotes only. No semicolons.
+  processFlow=flowchart TD (top 6 process steps)
+  useCaseDiagram=flowchart LR (top 6 use cases)
+  erd=erDiagram (top 4 entities)
+  JSON-encode: newlines as \\n, inner quotes as \\"
+
+OUTPUT RULES:
+1. Return ONLY pure JSON — no markdown, no backticks, start { end }
+2. All strings properly JSON-escaped
+3. Arrays NEVER null — use []
+
+OUTPUT SCHEMA:
+{
+  "latarBelakang": "string",
+  "masalahIsu": "string",
   "pengampu": "string",
   "unitPenanggungJawab": "string",
   "namaPIC": "string",
   "kontakPIC": "string",
   "targetPenyelesaian": "YYYY-MM-DD or empty",
   "targetOutcome": "string",
-  "bia": { "operasional": "Critical|High|Medium|Low", "finansial": "Critical|High|Medium|Low", "reputasi": "Critical|High|Medium|Low", "hukum": "Critical|High|Medium|Low", "rto": "string", "rpo": "string" },
-  "detectedPeople": [ { "name": "string", "role": "string" } ],
-  "brdProcessAnalysis": { "modul": "string", "subModul": "string", "eaMapping": "string", "notes": "string" },
-  "fsdLinks": { "diagrams": "URL or null", "mockups": "URL or null", "repo": "URL or null" },
   "outcomeKeluaran": "string",
   "businessValue": "string",
   "alurBisnisProses": "string",
+  "bia": { "operasional": "Critical|High|Medium|Low", "finansial": "Critical|High|Medium|Low", "reputasi": "Critical|High|Medium|Low", "hukum": "Critical|High|Medium|Low", "rto": "string", "rpo": "string" },
+  "detectedPeople": [ { "name": "string", "role": "string" } ],
+  "risikoBisnis": [ { "id": "R-01", "risk": "string", "impact": "string", "mitigasi": "string", "level": "Tinggi|Sedang|Rendah" } ],
+  "brdProcessAnalysis": { "modul": "string", "subModul": "string", "eaMapping": "string", "notes": "string" },
   "mermaid": { "processFlow": "string", "useCaseDiagram": "string", "erd": "string" }
 }
 `;
@@ -410,7 +436,7 @@ const triageDocument = async (apiKey, skeleton) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
   // ✅ Tier 1: 30K input TPM (~120K chars). Retry with smaller doc on 500.
-  const ATTEMPT_LIMITS = [80_000, 50_000, 30_000];
+  const ATTEMPT_LIMITS = [25_000, 20_000, 15_000]; // ✅ Tier 1: 30K input TPM — hard cap well below limit
 
   for (let attempt = 0; attempt < ATTEMPT_LIMITS.length; attempt++) {
     const maxChars = ATTEMPT_LIMITS[attempt];
@@ -457,6 +483,32 @@ const analyzeDocument = async (apiKey, documentText, contextNote = "") => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  PASS 3 — Enrich  (Sonnet)
+// ─────────────────────────────────────────────────────────────────────────────
+const enrichDocument = async (apiKey, documentText, opusResult) => {
+  console.log("✨ Pass 3 — Enriching with Sonnet...");
+
+  const userMessage = [
+    "Here is what the previous analyst already extracted (do NOT re-extract these):",
+    "```json",
+    JSON.stringify({ nama: opusResult.nama }, null, 2),
+    "```",
+    "\nNow extract the REMAINING fields from this document:\n\nDOCUMENT CONTENT:\n\n",
+    documentText.substring(0, 15_000), // ✅ Sonnet only needs early sections — well under 30K input TPM
+  ].join("\n");
+
+  const { text, usage } = await callClaude(apiKey, {
+    model:       ENRICH_MODEL,
+    maxTokens:   ENRICH_MAX_TOKENS,
+    system:      ENRICH_SYSTEM_PROMPT,
+    userMessage,
+  });
+
+  console.log(`✅ Sonnet done. Input: ${usage?.input_tokens?.toLocaleString()} tok, Output: ${usage?.output_tokens?.toLocaleString()} tok`);
+  return { text, usage };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  MAIN EXPORT — processDocumentWithAI
 // ─────────────────────────────────────────────────────────────────────────────
 export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress) => {
@@ -466,17 +518,18 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
   const pages        = isPagedInput ? fileTextOrPages.pages    : null;
   const fullText     = isPagedInput ? fileTextOrPages.fullText : fileTextOrPages;
 
-  notify(`🚀 Starting two-pass analysis... (${(fullText?.length || 0).toLocaleString()} chars, ${pages?.length ?? "?"} pages)`);
+  notify(`🚀 Starting three-pass analysis... (${(fullText?.length || 0).toLocaleString()} chars, ${pages?.length ?? "?"} pages)`);
 
   const log = [];
   let triageUsage   = null;
   let analysisUsage = null;
+  let enrichUsage   = null;
   let selectedPages = null;
   let documentToAnalyze = fullText;
   let contextNote = "";
 
   try {
-    // ── PASS 1: Triage ────────────────────────────────────────────────────
+    // ── PASS 1: Triage (Haiku) ────────────────────────────────────────────
     if (pages && pages.length > 10) {
       notify(`⚡ Pass 1: Scanning ${pages.length} pages with Haiku...`);
 
@@ -518,30 +571,71 @@ export const processDocumentWithAI = async (apiKey, fileTextOrPages, onProgress)
         }
       }
     } else {
-      notify("ℹ️ Document is short — skipping triage, sending full text to Opus.");
+      notify("ℹ️ Document is short — skipping triage.");
     }
 
-    // ── PASS 2: Deep Analysis ─────────────────────────────────────────────
-    notify(`🧠 Pass 2: Deep analysis with Claude Opus...`);
-    const analysis = await analyzeDocument(apiKey, documentToAnalyze, contextNote);
-    analysisUsage  = analysis.usage;
+    // ── PASS 2 + 3: Opus & Sonnet in PARALLEL ────────────────────────────
+    notify(`🧠 Pass 2+3: Opus (critical) + Sonnet (enrich) running in parallel...`);
+    const [analysis, enrich] = await Promise.all([
+      analyzeDocument(apiKey, documentToAnalyze, contextNote),
+      enrichDocument(apiKey, documentToAnalyze, {}),
+    ]);
+
+    analysisUsage = analysis.usage;
+    enrichUsage   = enrich.usage;
+    const opusParsed   = parseAIResponse(analysis.text);
+    const sonnetParsed = parseAIResponse(enrich.text);
 
     log.push({
       model: ANALYSIS_MODEL, pass: "analysis", status: "Success",
       inputTokens: analysis.usage?.input_tokens, outputTokens: analysis.usage?.output_tokens,
     });
+    log.push({
+      model: ENRICH_MODEL, pass: "enrich", status: "Success",
+      inputTokens: enrich.usage?.input_tokens, outputTokens: enrich.usage?.output_tokens,
+    });
 
-    const parsed = parseAIResponse(analysis.text);
+    // ── MERGE: Opus owns critical arrays, Sonnet fills the rest ──────────
+    const merged = {
+      // Opus owns these
+      nama:                   opusParsed.nama                        || sonnetParsed.nama                   || "",
+      asIsToBe:               opusParsed.asIsToBe?.length            ? opusParsed.asIsToBe                  : sonnetParsed.asIsToBe               || [],
+      kebutuhanFungsional:    opusParsed.kebutuhanFungsional?.length  ? opusParsed.kebutuhanFungsional        : sonnetParsed.kebutuhanFungsional     || [],
+      kebutuhanNonFungsional: opusParsed.kebutuhanNonFungsional?.length ? opusParsed.kebutuhanNonFungsional  : sonnetParsed.kebutuhanNonFungsional   || [],
+      actors:                 opusParsed.actors?.length               ? opusParsed.actors                    : sonnetParsed.actors                  || [],
+      useCases:               opusParsed.useCases?.length             ? opusParsed.useCases                  : sonnetParsed.useCases                || [],
+      // Sonnet owns these
+      latarBelakang:          sonnetParsed.latarBelakang              || "",
+      masalahIsu:             sonnetParsed.masalahIsu                 || "",
+      pengampu:               sonnetParsed.pengampu                   || "",
+      unitPenanggungJawab:    sonnetParsed.unitPenanggungJawab        || "",
+      namaPIC:                sonnetParsed.namaPIC                    || "",
+      kontakPIC:              sonnetParsed.kontakPIC                  || "",
+      targetPenyelesaian:     sonnetParsed.targetPenyelesaian         || "",
+      targetOutcome:          sonnetParsed.targetOutcome              || "",
+      outcomeKeluaran:        sonnetParsed.outcomeKeluaran            || "",
+      businessValue:          sonnetParsed.businessValue              || "",
+      alurBisnisProses:       sonnetParsed.alurBisnisProses           || "",
+      bia:                    sonnetParsed.bia                        || {},
+      detectedPeople:         sonnetParsed.detectedPeople             || [],
+      risikoBisnis:           sonnetParsed.risikoBisnis?.length       ? sonnetParsed.risikoBisnis             : opusParsed.risikoBisnis              || [],
+      brdProcessAnalysis:     sonnetParsed.brdProcessAnalysis         || { modul: "", subModul: "", eaMapping: "", notes: "" },
+      fsdLinks:               sonnetParsed.fsdLinks                   || { diagrams: null, mockups: null, repo: null },
+      mermaid:                sonnetParsed.mermaid                    || {},
+    };
 
     return {
-      success: true, data: parsed,
-      usedModel: ANALYSIS_MODEL,
-      triageModel: pages?.length > 10 ? TRIAGE_MODEL : null,
+      success: true, data: merged,
+      usedModel:    ANALYSIS_MODEL,
+      enrichModel:  ENRICH_MODEL,
+      triageModel:  pages?.length > 10 ? TRIAGE_MODEL : null,
       selectedPages, totalPages: pages?.length ?? null,
       usage: {
-        triage: triageUsage, analysis: analysisUsage,
-        input_tokens:  (triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0),
-        output_tokens: (triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0),
+        triage:   triageUsage,
+        analysis: analysisUsage,
+        enrich:   enrichUsage,
+        input_tokens:  (triageUsage?.input_tokens  || 0) + (analysisUsage?.input_tokens  || 0) + (enrichUsage?.input_tokens  || 0),
+        output_tokens: (triageUsage?.output_tokens || 0) + (analysisUsage?.output_tokens || 0) + (enrichUsage?.output_tokens || 0),
       },
       log,
     };
