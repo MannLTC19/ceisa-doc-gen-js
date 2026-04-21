@@ -49,39 +49,32 @@ export const getUseCaseComplexity = (transactions) => {
 
 
 // ─── TCF FACTORS (Technical Complexity) ──────────────────────────────────────
-// Used only to initialise the tcfImpacts state shape in App.jsx.
-// Actual TCF value is locked at 0.87 per IKC standard (see calc in App.jsx).
-
 export const TCF_FACTORS = [
-    { id: 'T1',  name: 'Distributed System'          },
-    { id: 'T2',  name: 'Response / Throughput'       },
-    { id: 'T3',  name: 'End-User Efficiency'         },
-    { id: 'T4',  name: 'Complex Internal Processing' },
-    { id: 'T5',  name: 'Reusability'                 },
-    { id: 'T6',  name: 'Easy Installation'           },
-    { id: 'T7',  name: 'Easy Operational Use'        },
-    { id: 'T8',  name: 'Portability'                 },
-    { id: 'T9',  name: 'Easy to Change'              },
-    { id: 'T10', name: 'Concurrency'                 },
-    { id: 'T11', name: 'Special Security Features'   },
-    { id: 'T12', name: 'Direct Access for 3rd Party' },
-    { id: 'T13', name: 'Special User Training'       },
+    { id: 'T1',  name: 'Distributed System',          weight: 2.0 },
+    { id: 'T2',  name: 'Response / Throughput',       weight: 1.0 },
+    { id: 'T3',  name: 'End-User Efficiency',         weight: 1.0 },
+    { id: 'T4',  name: 'Complex Internal Processing', weight: 1.0 },
+    { id: 'T5',  name: 'Reusability',                 weight: 1.0 },
+    { id: 'T6',  name: 'Easy Installation',           weight: 0.5 },
+    { id: 'T7',  name: 'Easy Operational Use',        weight: 0.5 },
+    { id: 'T8',  name: 'Portability',                 weight: 2.0 },
+    { id: 'T9',  name: 'Easy to Change',              weight: 1.0 },
+    { id: 'T10', name: 'Concurrency',                 weight: 1.0 },
+    { id: 'T11', name: 'Special Security Features',   weight: 1.0 },
+    { id: 'T12', name: 'Direct Access for 3rd Party', weight: 1.0 },
+    { id: 'T13', name: 'Special User Training',       weight: 1.0 },
 ];
 
-
 // ─── EF FACTORS (Environmental / Experience) ─────────────────────────────────
-// Used only to initialise the efImpacts state shape in App.jsx.
-// Actual EF value is locked at 0.77 per IKC standard (see calc in App.jsx).
-
 export const EF_FACTORS = [
-    { id: 'E1', name: 'Familiar with UML'            },
-    { id: 'E2', name: 'Application Experience'       },
-    { id: 'E3', name: 'OO Programming Experience'    },
-    { id: 'E4', name: 'Lead Analyst Capability'      },
-    { id: 'E5', name: 'Motivation'                   },
-    { id: 'E6', name: 'Stable Requirements'          },
-    { id: 'E7', name: 'Part-time Workers'            },
-    { id: 'E8', name: 'Difficult Programming Language'},
+    { id: 'E1', name: 'Familiar with UML',              weight: 1.5 },
+    { id: 'E2', name: 'Part-Time Workers',              weight: -1.0 },
+    { id: 'E3', name: 'Analyst Capability',             weight: 0.5 },
+    { id: 'E4', name: 'Application Experience',         weight: 0.5 },
+    { id: 'E5', name: 'OO Programming Experience',      weight: 1.0 },
+    { id: 'E6', name: 'Motivation',                     weight: 1.0 },
+    { id: 'E7', name: 'Difficult Programming Language', weight: -1.0 },
+    { id: 'E8', name: 'Stable Requirements',            weight: 2.0 },
 ];
 
 
@@ -222,55 +215,65 @@ export const PHASE_DISTRIBUTION = [
 ];
 
 
-// ─── BUSINESS VALUE OPTIONS ───────────────────────────────────────────────────
-// Used in Tab Penelitian section 6 — Business Value vs Effort matrix
+// ─── NEW: BUSINESS VALUE OPTIONS (PPS) ────────────────────────────────────────
+// Used in Tab Penelitian section 3 — Business Value vs Effort matrix
 
 export const BV_OPTIONS = {
     efficiency: [
-        { label: 'Low',    score: 1 },
-        { label: 'Med',    score: 3 },
-        { label: 'High',   score: 5 },
+        { label: 'BPR (Bisnis Proses Reengineering)', score: 4 },
+        { label: 'Kapabilitas Baru',                  score: 3 },
+        { label: 'Otomasi',                           score: 2 },
+        { label: 'Penggunaan Aplikasi Existing',      score: 1 },
     ],
     users: [
-        { label: '<100',      score: 1 },
-        { label: '100-500',   score: 3 },
-        { label: '>500',      score: 5 },
+        { label: 'Pengguna Jasa',         score: 4 },
+        { label: 'Pegawai Bea Cukai',     score: 3 },
+        { label: 'Pimpinan',              score: 2 },
+        { label: 'Satuan Kerja Terbatas', score: 1 },
     ],
     regulatory: [
-        { label: 'None',        score: 1 },
-        { label: 'Recommended', score: 3 },
-        { label: 'Mandatory',   score: 5 },
+        { label: 'UU/ Instruksi Presiden',             score: 5 },
+        { label: 'Peraturan Baru dan Mendesak',        score: 5 },
+        { label: 'Berimplikasi Hukum (Temuan APH)',    score: 4 },
+        { label: 'Rekomendasi APF',                    score: 4 },
+        { label: 'Inisiatif Strategis (RBTK & TPRKC)', score: 3 },
+        { label: 'Quick Win',                          score: 2 },
+        { label: 'Permintaan AdHoc (Dirjen)',          score: 2 },
+        { label: 'Reengineering',                      score: 1 },
+        { label: 'Optimasi',                           score: 1 },
     ],
     bia: [
-        { label: 'Low',      score: 1 },
-        { label: 'Med',      score: 3 },
-        { label: 'Critical', score: 5 },
+        { label: 'IKU DJBC',   score: 2 },
+        { label: 'IKU Satker', score: 1 },
     ],
 };
 
 
-// ─── EFFORT OPTIONS ───────────────────────────────────────────────────────────
-// Used in Tab Penelitian section 6 — Business Value vs Effort matrix
+// ─── NEW: EFFORT OPTIONS (IKC) ────────────────────────────────────────────────
+// Used in Tab Penelitian section 3 — Business Value vs Effort matrix
+// Note: Duration score is inverted so longer timeline = higher effort score/risk
 
 export const EFFORT_OPTIONS = {
     duration: [
-        { label: '<3 Months',  score: 1 },
-        { label: '3-6 Months', score: 3 },
-        { label: '>6 Months',  score: 5 },
+        { label: '< 3 bulan',  score: 1 },
+        { label: '3-6 bulan',  score: 2 },
+        { label: '6-9 bulan',  score: 3 },
+        { label: '9-12 bulan', score: 4 },
+        { label: '> 12 bulan', score: 5 },
     ],
     technology: [
-        { label: 'Existing', score: 1 },
-        { label: 'Partial',  score: 3 },
-        { label: 'New',      score: 5 },
+        { label: 'Teknologi Existing', score: 1 },
+        { label: 'Teknologi Baru',     score: 2 },
     ],
     systems: [
-        { label: 'None',     score: 1 },
-        { label: '1-2',      score: 3 },
-        { label: '3+',       score: 5 },
+        { label: 'Tidak ada',        score: 1 },
+        { label: '1 Sistem Terkait', score: 2 },
+        { label: '2-5 sistem',       score: 3 },
+        { label: '> 5 sistem',       score: 4 },
     ],
     strategy: [
-        { label: 'High',   score: 1 },
-        { label: 'Medium', score: 3 },
-        { label: 'Low',    score: 5 },
+        { label: 'Insource',   score: 2 },
+        { label: 'Outsource',  score: 1 },
+        { label: 'Squad Team', score: 1 },
     ],
 };

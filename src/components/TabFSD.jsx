@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
 import { 
-    Target, Sparkles, Workflow, Layout, 
-    Server, Code, Link as LinkIcon, Plus, Trash2, 
-    UserCheck, Database, GitBranch, 
-    Maximize, X, ZoomIn, ZoomOut
+    Layout, Server, Code, Link as LinkIcon, Plus, Trash2, 
+    UserCheck, Database, ShieldCheck, Maximize, X, Workflow,
+    ZoomIn, ZoomOut, RefreshCw, Target, MonitorSmartphone, LayoutList
 } from 'lucide-react';
 
-// ─── MERMAID INIT (module-level, runs once) ──────────────────────────────
+// ─── MERMAID INIT ────────────────────────────────────────────────────────
 mermaid.initialize({ 
     startOnLoad: false,
     theme: 'default', 
@@ -16,421 +15,439 @@ mermaid.initialize({
     flowchart: { useMaxWidth: false, htmlLabels: true } 
 });
 
-// ─── MERMAID CODE SANITIZER ──────────────────────────────────────────────
-const sanitizeMermaid = (rawCode) => {
-    if (!rawCode) return "";
-    return rawCode
-        .replace(/\\n/g, '\n')
-        .replace(/\\t/g, '  ')
-        .replace(/\[\'([^\']*)\'\]/g, '["$1"]')
-        .replace(/\(\[\'([^\']*)\'\]\)/g, '(["$1"])')
-        .replace(/\{\'([^\']*)\'\}/g, '{"$1"}')
-        .replace(/subgraph\s+'([^']+)'/g, 'subgraph "$1"')
-        .replace(/;(\s*\n)/g, '$1')
-        .replace(/;(\s*)$/g, '$1');
-};
+export const TabFSD = ({ 
+    project, setProject, handleUpdateArray, handleAddArray, handleRemoveArray 
+}) => {
+    const [fullScreenDiagram, setFullScreenDiagram] = useState(null);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    
+    const mermaidRefs = {
+        processFlow: useRef(null),
+        useCase: useRef(null),
+        erd: useRef(null)
+    };
+    const fullScreenRef = useRef(null);
 
-// ─── MERMAID VIEWER COMPONENT ────────────────────────────────────────────
-const MermaidViewer = ({ code, onChange, title }) => {
-    const [preview, setPreview]         = useState(true);
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [scale, setScale]             = useState(1);
-    const containerRef   = useRef(null);
-    const fullscreenRef  = useRef(null);
-
-    const renderDiagram = async (element, rawCode) => {
-        if (!element || !rawCode?.trim()) return;
-        const diagramCode = sanitizeMermaid(rawCode);
-        
-        try {
-            element.innerHTML = '';
-            const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-            const { svg } = await mermaid.render(id, diagramCode);
-            element.innerHTML = svg;
-
-            const svgEl = element.querySelector('svg');
-            if (svgEl) {
-                svgEl.style.height    = '100%';
-                svgEl.style.maxWidth  = '100%';
+    // Render Mermaid diagrams safely for inline previews
+    useEffect(() => {
+        const renderDiagram = async (ref, id, code) => {
+            if (ref.current && code) {
+                try {
+                    ref.current.removeAttribute('data-processed');
+                    const { svg } = await mermaid.render(id, code);
+                    if (ref.current) ref.current.innerHTML = svg;
+                } catch (err) {
+                    if (ref.current) ref.current.innerHTML = `<div style="color:var(--kt-danger); font-size:12px; font-weight: 600;">Error: ${err.message}</div>`;
+                }
             }
-        } catch (err) {
-            console.warn("Mermaid render warning:", err.message);
-            element.innerHTML = `
-                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-                            height:100%;color:var(--kt-text-muted);gap:8px;background:var(--kt-bg);
-                            border:2px dashed var(--kt-border);border-radius:12px;padding:24px;text-align:center;">
-                    <div style="font-size:2rem;opacity:0.4">⚡</div>
-                    <p style="font-size:12px;font-weight:700;margin:0;color:var(--kt-text-dark)">Preview Unavailable</p>
-                    <p style="font-size:11px;margin:0;">Switch to <strong>Code</strong> view to fix syntax</p>
-                </div>`;
+        };
+        renderDiagram(mermaidRefs.processFlow, `fsd_bpmn_${Date.now()}`, project.mermaid?.processFlow);
+        renderDiagram(mermaidRefs.useCase, `fsd_uc_${Date.now()}`, project.mermaid?.useCaseDiagram);
+        renderDiagram(mermaidRefs.erd, `fsd_erd_${Date.now()}`, project.mermaid?.erd);
+    }, [project.mermaid?.processFlow, project.mermaid?.useCaseDiagram, project.mermaid?.erd]);
+
+    // Handle Fullscreen Mermaid Render safely (Async)
+    useEffect(() => {
+        if (fullScreenDiagram && fullScreenRef.current) {
+            fullScreenRef.current.removeAttribute('data-processed');
+            mermaid.render(`fsd_full_${Date.now()}`, fullScreenDiagram)
+              .then(({ svg }) => {
+                if (fullScreenRef.current) fullScreenRef.current.innerHTML = svg;
+              })
+              .catch(err => {
+                if (fullScreenRef.current) fullScreenRef.current.innerHTML = `<div style="color:red;">Error render: ${err.message}</div>`;
+              });
         }
+    }, [fullScreenDiagram]);
+
+    const closeFullscreen = () => {
+        setFullScreenDiagram(null);
+        setZoomLevel(1);
     };
 
-    useEffect(() => {
-        if (preview) renderDiagram(containerRef.current, code);
-    }, [code, preview]);
+    const handleUpdateArch = (domain, field, value) => {
+        setProject(prev => ({
+            ...prev,
+            fsdArchitecture: {
+                ...(prev.fsdArchitecture),
+                [domain]: { ...(prev.fsdArchitecture?.[domain]), [field]: value }
+            }
+        }));
+    };
 
-    useEffect(() => {
-        if (isFullscreen && preview) {
-            setTimeout(() => renderDiagram(fullscreenRef.current, code), 50);
-        }
-    }, [isFullscreen, code, preview]);
+    const cleanTableHeaderStyle = {
+        background: '#f4f5f8', color: '#a1a5b7', fontSize: 11, textTransform: 'uppercase',
+        letterSpacing: '0.05em', fontWeight: 700, padding: '12px 16px', borderBottom: '1px solid #e4e6ef'
+    };
+
+    // Ensure backwards compatibility if they don't have the new design array
+    const designItems = project.fsdDesign?.length >= 5 ? project.fsdDesign : [
+        { id: 'd1', status: 'Belum', item: 'Use Case Diagram', pic: '', link: '' },
+        { id: 'd2', status: 'Belum', item: 'Activity Diagram', pic: '', link: '' },
+        { id: 'd3', status: 'Belum', item: 'Class Diagram',    pic: '', link: '' },
+        { id: 'd4', status: 'Belum', item: 'Rancangan Basis Data (ERD & Kamus Data)', pic: '', link: '' },
+        { id: 'd5', status: 'Belum', item: 'Rancangan Service / API Collection', pic: '', link: '' },
+    ];
 
     return (
-        <>
-            {/* ── CARD VIEW ── */}
-            <div className="kt-card" style={{ height: 400, display: 'flex', flexDirection: 'column' }}>
-                <div className="kt-card-header" style={{ padding: '12px 16px', background: 'var(--kt-border-light)' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--kt-text-gray)', textTransform: 'uppercase' }}>{title}</span>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <div style={{ display: 'flex', background: '#fff', borderRadius: 6, border: '1px solid var(--kt-border)', padding: 2 }}>
-                            <button 
-                                onClick={() => setPreview(false)} 
-                                style={{
-                                    padding: '4px 12px', fontSize: 11, fontWeight: 700, borderRadius: 4, cursor: 'pointer', border: 'none',
-                                    background: !preview ? 'var(--kt-primary)' : 'transparent',
-                                    color: !preview ? '#fff' : 'var(--kt-text-muted)'
-                                }}
-                            >
-                                Code
-                            </button>
-                            <button 
-                                onClick={() => setPreview(true)} 
-                                style={{
-                                    padding: '4px 12px', fontSize: 11, fontWeight: 700, borderRadius: 4, cursor: 'pointer', border: 'none',
-                                    background: preview ? 'var(--kt-primary)' : 'transparent',
-                                    color: preview ? '#fff' : 'var(--kt-text-muted)'
-                                }}
-                            >
-                                Preview
-                            </button>
-                        </div>
-                        <button 
-                            onClick={() => setIsFullscreen(true)} 
-                            className="kt-btn kt-btn-light kt-btn-icon" 
-                            title="Fullscreen"
-                        >
-                            <Maximize style={{ width: 14, height: 14 }}/>
-                        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="kt-fade-in">
+
+            {/* ── HEADER ──────────────────────────────────────────────────────── */}
+            <div className="kt-notice kt-notice-primary" style={{ background: 'var(--kt-primary-light)', borderColor: 'rgba(27,132,255,0.2)', color: 'var(--kt-primary)' }}>
+                <Layout />
+                <div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 3 }}>Functional Specification Document (FSD)</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--kt-text-gray)' }}>
+                        FSD diisi oleh Tim Pengembang (Project Manager, System Analyst, Programmer, Tim DB, Tim Infra) untuk mendefinisikan spesifikasi teknis dan rancangan sistem.
                     </div>
-                </div>
-                
-                <div style={{ flex: 1, overflow: 'hidden', position: 'relative', background: '#fff' }}>
-                    {preview ? (
-                        <div 
-                            ref={containerRef} 
-                            style={{ width: '100%', height: '100%', overflow: 'auto', padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        />
-                    ) : (
-                        <textarea 
-                            value={code} 
-                            onChange={(e) => onChange(e.target.value)} 
-                            style={{ 
-                                width: '100%', height: '100%', padding: 16, fontFamily: 'monospace', fontSize: 12, 
-                                color: 'var(--kt-text-dark)', background: 'var(--kt-bg)', border: 'none', resize: 'none', outline: 'none' 
-                            }}
-                            spellCheck="false"
-                            placeholder="Paste or edit Mermaid diagram code here..."
-                        />
-                    )}
                 </div>
             </div>
 
-            {/* ── FULLSCREEN MODAL ── */}
-            {isFullscreen && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
-                    background: 'rgba(7, 20, 55, 0.9)', backdropFilter: 'blur(4px)',
-                    display: 'flex', alignItems: 'center', justifyItems: 'center', padding: 32
-                }}>
-                    <div style={{ background: '#fff', width: '100%', height: '100%', borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <div style={{ background: 'var(--kt-border-light)', padding: '16px 24px', borderBottom: '1px solid var(--kt-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, fontSize: 16 }}>
-                                <Maximize style={{ width: 18, height: 18, color: 'var(--kt-primary)' }}/> {title}
-                            </h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <button onClick={() => setScale(s => Math.max(0.3, s - 0.2))} className="kt-btn kt-btn-light kt-btn-icon">
-                                    <ZoomOut style={{ width: 16, height: 16 }}/>
-                                </button>
-                                <span style={{ fontSize: 12, fontFamily: 'monospace', width: 48, textAlign: 'center', background: '#fff', border: '1px solid var(--kt-border)', borderRadius: 4, padding: '4px 0' }}>
-                                    {(scale * 100).toFixed(0)}%
-                                </span>
-                                <button onClick={() => setScale(s => Math.min(3, s + 0.2))} className="kt-btn kt-btn-light kt-btn-icon">
-                                    <ZoomIn style={{ width: 16, height: 16 }}/>
-                                </button>
-                                <div style={{ height: 24, width: 1, background: 'var(--kt-border)', margin: '0 8px' }}/>
-                                <button 
-                                    onClick={() => { setIsFullscreen(false); setScale(1); }} 
-                                    className="kt-btn kt-btn-icon"
-                                    style={{ background: 'var(--kt-danger-light)', color: 'var(--kt-danger)' }}
-                                >
-                                    <X style={{ width: 16, height: 16 }}/>
-                                </button>
+            {/* ── 01. INFORMASI UMUM ──────────────────────────────────────────── */}
+            <div className="kt-card">
+                <div className="kt-card-header">
+                    <h3 className="kt-card-title"><Target style={{ color: 'var(--kt-primary)' }}/> 01. Informasi Umum</h3>
+                </div>
+                <div className="kt-card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div><label className="kt-label" style={{ fontSize: 11 }}>Nama Proyek</label><div style={{ fontWeight: 700, fontSize: 14 }}>{project.nama || '-'}</div></div>
+                    <div><label className="kt-label" style={{ fontSize: 11 }}>Uraian Singkat</label><div style={{ fontSize: 13 }}>{project.uraianUsulan || '-'}</div></div>
+                    <div><label className="kt-label" style={{ fontSize: 11 }}>Unit Pengampu Bisnis Proses</label><div style={{ fontSize: 13 }}>{project.pengampu || '-'}</div></div>
+                    <div className="kt-form-row">
+                        <label className="kt-label" style={{ fontSize: 11 }}>Tanggal Dokumen FSD</label>
+                        <input type="date" className="kt-input" style={{ width: '100%', maxWidth: 200 }} value={project.tanggalFSD || ''} onChange={(e) => setProject(prev => ({...prev, tanggalFSD: e.target.value}))} />
+                    </div>
+                </div>
+            </div>
+
+            {/* ── 02. DIAGRAM ALUR PROSES BISNIS ──────────────────────────────── */}
+            <div className="kt-card">
+                <div className="kt-card-header">
+                    <h3 className="kt-card-title"><Workflow style={{ color: 'var(--kt-primary)' }}/> 02. Diagram Alur Proses Bisnis</h3>
+                </div>
+                <div className="kt-card-body" style={{ background: '#fafafa' }}>
+                    <p style={{ fontSize: 12, color: 'var(--kt-text-muted)', marginBottom: 20 }}>
+                        Bagian ini menjelaskan alur proses bisnis AS IS dan TO BE dalam bagan BPMN berdasarkan hasil diskusi dengan pemilik proses bisnis.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: 20 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+                            <label className="kt-label" style={{ fontSize: 11 }}>Source Code (Mermaid JS)</label>
+                            <textarea className="kt-textarea" style={{ fontFamily: 'monospace', fontSize: 11.5, height: 280, background: '#1e1e1e', color: '#d4d4d4', resize: 'vertical' }} value={project.mermaid?.processFlow || ''} onChange={(e) => setProject(prev => ({ ...prev, mermaid: { ...prev.mermaid, processFlow: e.target.value } }))}/>
+                        </div>
+                        <div style={{ border: '1px solid #e4e6ef', borderRadius: 8, padding: 16, background: '#fff', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--kt-text-gray)', textTransform: 'uppercase' }}>Preview AS-IS / TO-BE</span>
+                                {project.mermaid?.processFlow && (
+                                    <button onClick={() => setFullScreenDiagram(project.mermaid.processFlow)} className="kt-btn kt-btn-icon kt-btn-sm" style={{ background: 'var(--kt-primary-light)' }}>
+                                        <Maximize style={{ width: 14, height: 14, color: 'var(--kt-primary)' }} />
+                                    </button>
+                                )}
+                            </div>
+                            <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: '#f8f9fa', borderRadius: 6, padding: 16 }}>
+                                {project.mermaid?.processFlow ? <div ref={mermaidRefs.processFlow} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} /> : <span style={{ color: 'var(--kt-text-muted)', fontSize: 13, margin: 'auto' }}>Diagram belum tersedia.</span>}
                             </div>
                         </div>
-                        <div style={{ flex: 1, overflow: 'auto', background: 'var(--kt-bg)', padding: 32, display: 'flex', alignItems: 'flex-start', justifyItems: 'center' }}>
-                            <div 
-                                ref={fullscreenRef} 
-                                style={{ transform: `scale(${scale})`, transformOrigin: 'top center', transition: 'transform 0.2s ease', margin: '0 auto' }}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── 03. MOCK UP ─────────────────────────────────────────────────── */}
+            <div className="kt-card">
+                <div className="kt-card-header">
+                    <h3 className="kt-card-title"><MonitorSmartphone style={{ color: 'var(--kt-primary)' }}/> 03. Mock Up</h3>
+                </div>
+                <div className="kt-card-body">
+                    <div className="kt-form-row">
+                        <label className="kt-label">Link Mock Up (Figma / Prototype)</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--kt-primary-light)', padding: '10px 16px', borderRadius: 8, border: '1px solid rgba(27,132,255,0.2)' }}>
+                            <LinkIcon style={{ width: 18, height: 18, color: 'var(--kt-primary)' }} />
+                            <input 
+                                className="kt-input" 
+                                style={{ flex: 1, background: 'transparent', border: 'none', padding: 0, fontWeight: 600, outline: 'none' }}
+                                value={project.tautanMockup || ''} 
+                                onChange={e => setProject(prev => ({ ...prev, tautanMockup: e.target.value }))} 
+                                placeholder="https://www.figma.com/..." 
                             />
                         </div>
                     </div>
                 </div>
-            )}
-        </>
-    );
-};
-
-// ─── TAB FSD ─────────────────────────────────────────────────────────────
-export const TabFSD = ({ 
-    project, setProject, uploadedFile, handleUpdateArray, handleAddArray, handleRemoveArray 
-}) => {
-
-    // Logic: Safe updates to Mermaid structure
-    const updateMermaid = (field, value) => {
-        setProject(prev => ({
-            ...prev,
-            mermaid: { ...prev.mermaid, [field]: value }
-        }));
-    };
-
-    // Logic: Auto-populate list of names for PIC inputs
-    const availablePeople = useMemo(() => {
-        const names = new Set();
-        if (project.namaPIC) names.add(project.namaPIC);
-        if (project.signatures?.approvedBy?.name) names.add(project.signatures.approvedBy.name);
-        if (project.signatures?.preparedBy?.name) names.add(project.signatures.preparedBy.name);
-        if (Array.isArray(project.charter?.team)) {
-            project.charter.team.forEach(t => t.name && names.add(t.name));
-        }
-        return Array.from(names).filter(n => n?.trim() && n !== '....................');
-    }, [project]);
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="kt-fade-in">
-            <datalist id="pic-list">
-                {availablePeople.map((name, idx) => <option key={idx} value={name} />)}
-            </datalist>
-
-            {/* ── HEADER ──────────────────────────────────────────────────────── */}
-            <div className="kt-notice kt-notice-success">
-                <Target />
-                <div>
-                    <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        Functional Specification (FSD) 
-                        {uploadedFile && <Sparkles style={{ width: 14, height: 14 }}/>}
-                    </div>
-                    <div style={{ fontSize: 12.5, color: 'var(--kt-text-gray)' }}>
-                        Spesifikasi teknis mencakup diagram alur, mockup, hak akses, dan arsitektur pengembangan.
-                    </div>
-                </div>
             </div>
 
-            {/* ── 1. BPMN ─────────────────────────────────────────────────────── */}
-            <div className="kt-card">
-                <div className="kt-card-header">
-                    <h3 className="kt-card-title">
-                        <Workflow /> 1. Diagram Alur Proses Bisnis (BPMN)
-                    </h3>
+            {/* ── 04. DAFTAR HAK AKSES INFORMASI (CRUD) ─────────────────────── */}
+            <div className="kt-card" style={{ overflow: 'hidden' }}>
+                <div className="kt-card-header" style={{ borderBottom: 'none', paddingBottom: 12 }}>
+                    <h3 className="kt-card-title"><UserCheck style={{ color: 'var(--kt-primary)' }} /> 04. Daftar Hak Akses Informasi</h3>
+                    <button 
+                        onClick={() => handleAddArray('fsdAccessRights', { id: `ar_${Date.now()}`, role: '', feature: '', c: false, r: false, u: false, d: false })} 
+                        className="kt-btn kt-btn-primary kt-btn-sm"
+                        style={{ borderRadius: 8 }}
+                    >
+                        <Plus style={{ width: 14, height: 14 }} /> Tambah Akses
+                    </button>
                 </div>
-                <div className="kt-card-body">
-                    <MermaidViewer 
-                        title="Business Process Flow" 
-                        code={project.mermaid?.processFlow || ''} 
-                        onChange={val => updateMermaid('processFlow', val)} 
-                    />
+                <div style={{ padding: '0 24px 16px 24px', fontSize: 12, color: 'var(--kt-text-muted)' }}>
+                    <strong>C</strong> = Create | <strong>R</strong> = Read | <strong>U</strong> = Update | <strong>D</strong> = Delete | Ceklis = Memiliki hak akses
                 </div>
-            </div>
-
-            {/* ── 2. USE CASE ─────────────────────────────────────────────────── */}
-            <div className="kt-card">
-                <div className="kt-card-header">
-                    <h3 className="kt-card-title">
-                        <GitBranch /> 2. Use Case Diagram
-                    </h3>
-                </div>
-                <div className="kt-card-body">
-                    <MermaidViewer 
-                        title="System Use Case Diagram" 
-                        code={project.mermaid?.useCaseDiagram || ''} 
-                        onChange={val => updateMermaid('useCaseDiagram', val)} 
-                    />
-                </div>
-            </div>
-
-            {/* ── 3. ERD ──────────────────────────────────────────────────────── */}
-            <div className="kt-card">
-                <div className="kt-card-header">
-                    <h3 className="kt-card-title">
-                        <Database /> 3. Data Model / ERD
-                    </h3>
-                </div>
-                <div className="kt-card-body">
-                    <MermaidViewer 
-                        title="Entity Relationship Diagram (ERD)" 
-                        code={project.mermaid?.erd || ''} 
-                        onChange={val => updateMermaid('erd', val)} 
-                    />
-                </div>
-            </div>
-
-            {/* ── 4 & 5. MOCKUP & RIGHTS ──────────────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
-                
-                {/* Mockups */}
-                <div className="kt-card">
-                    <div className="kt-card-header">
-                        <h3 className="kt-card-title">
-                            <Layout /> 4. Mock Up (UI/UX)
-                        </h3>
-                        <button 
-                            onClick={() => handleAddArray('fsdMockups', { id: Date.now(), name: 'Page', link: '' })} 
-                            className="kt-btn kt-btn-primary kt-btn-sm"
-                        >
-                            <Plus style={{ width: 14, height: 14 }}/> Add Link
-                        </button>
-                    </div>
-                    <div className="kt-card-body" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {(project.fsdMockups || []).length === 0 && (
-                                <span style={{ fontSize: 12, color: 'var(--kt-text-muted)', textAlign: 'center', padding: 20 }}>Tidak ada link mockup.</span>
-                            )}
-                            {(project.fsdMockups || []).map((mock, idx) => (
-                                <div key={mock.id} style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--kt-bg)', padding: 8, borderRadius: 8, border: '1px solid var(--kt-border)' }}>
-                                    <span style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--kt-primary-light)', color: 'var(--kt-primary)', borderRadius: '50%', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                                        {idx + 1}
-                                    </span>
-                                    <input 
-                                        value={mock.name} 
-                                        onChange={e => handleUpdateArray('fsdMockups', mock.id, 'name', e.target.value)} 
-                                        className="kt-input" 
-                                        style={{ flex: 1, padding: '6px 10px' }}
-                                        placeholder="Nama Halaman / Modul" 
-                                    />
-                                    <input 
-                                        value={mock.link} 
-                                        onChange={e => handleUpdateArray('fsdMockups', mock.id, 'link', e.target.value)} 
-                                        className="kt-input" 
-                                        style={{ width: 140, padding: '6px 10px', fontSize: 11, color: 'var(--kt-primary)' }}
-                                        placeholder="Link Figma / URL..." 
-                                    />
-                                    <button onClick={() => handleRemoveArray('fsdMockups', mock.id)} className="kt-btn kt-btn-icon" style={{ background: 'transparent' }}>
-                                        <Trash2 style={{ width: 14, height: 14, color: 'var(--kt-danger)' }}/>
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Access Rights */}
-                <div className="kt-card">
-                    <div className="kt-card-header">
-                        <h3 className="kt-card-title">
-                            <UserCheck /> 5. Hak Akses (Matrix)
-                        </h3>
-                        <button 
-                            onClick={() => handleAddArray('fsdAccessRights', { 
-                                id: `ar_${Date.now()}`, role: 'User', feature: 'Login', 
-                                c: false, r: true, u: false, d: false 
-                            })} 
-                            className="kt-btn kt-btn-primary kt-btn-sm"
-                            style={{ background: 'var(--kt-warning)', color: '#fff' }}
-                        >
-                            <Plus style={{ width: 14, height: 14 }}/> Add Hak Akses
-                        </button>
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table className="kt-table">
-                            <thead>
-                                <tr>
-                                    <th>Role</th>
-                                    <th>Fitur</th>
-                                    <th style={{ width: 30, textAlign: 'center' }} title="Create">C</th>
-                                    <th style={{ width: 30, textAlign: 'center' }} title="Read">R</th>
-                                    <th style={{ width: 30, textAlign: 'center' }} title="Update">U</th>
-                                    <th style={{ width: 30, textAlign: 'center' }} title="Delete">D</th>
-                                    <th style={{ width: 40 }}></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {(project.fsdAccessRights || []).length === 0 && (
-                                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 20, color: 'var(--kt-text-muted)', fontSize: 12 }}>Belum ada data hak akses.</td></tr>
-                                )}
-                                {(project.fsdAccessRights || []).map(item => (
-                                    <tr key={item.id}>
-                                        <td>
-                                            <input 
-                                                value={item.role} 
-                                                onChange={e => handleUpdateArray('fsdAccessRights', item.id, 'role', e.target.value)} 
-                                                className="kt-input" style={{ padding: '4px 8px', fontWeight: 700 }}
-                                            />
+                <div style={{ overflowX: 'auto', borderTop: '1px solid #e4e6ef' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead>
+                            <tr>
+                                <th style={{ ...cleanTableHeaderStyle, width: 50, textAlign: 'center' }}>No</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: '30%' }}>Kategori Pengguna (Role)</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: '40%' }}>Fitur / Modul</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: 40, textAlign: 'center' }}>C</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: 40, textAlign: 'center' }}>R</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: 40, textAlign: 'center' }}>U</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: 40, textAlign: 'center' }}>D</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: 50 }}></th>
+                            </tr>
+                        </thead>
+                        <tbody style={{ background: '#fff' }}>
+                            {(project.fsdAccessRights || []).length === 0 ? (
+                                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#a1a5b7', fontSize: 13 }}>Belum ada matriks hak akses.</td></tr>
+                            ) : (
+                                project.fsdAccessRights.map((ar, idx) => (
+                                    <tr key={ar.id} style={{ borderBottom: '1px solid #f4f5f8' }}>
+                                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#a1a5b7', padding: '16px' }}>{idx + 1}</td>
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <input className="kt-input" style={{ fontWeight: 600 }} value={ar.role || ''} onChange={e => handleUpdateArray('fsdAccessRights', ar.id, 'role', e.target.value)} placeholder="Contoh: Pegawai" />
                                         </td>
-                                        <td>
-                                            <input 
-                                                value={item.feature} 
-                                                onChange={e => handleUpdateArray('fsdAccessRights', item.id, 'feature', e.target.value)} 
-                                                className="kt-input" style={{ padding: '4px 8px' }}
-                                            />
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <input className="kt-input" value={ar.feature || ''} onChange={e => handleUpdateArray('fsdAccessRights', ar.id, 'feature', e.target.value)} placeholder="Contoh: Merekam Draft Nota Dinas" />
                                         </td>
-                                        {['c','r','u','d'].map(perm => (
-                                            <td key={perm} style={{ textAlign: 'center' }}>
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={item[perm]} 
-                                                    onChange={e => handleUpdateArray('fsdAccessRights', item.id, perm, e.target.checked)} 
-                                                    style={{ cursor: 'pointer', width: 14, height: 14, accentColor: 'var(--kt-primary)' }}
-                                                />
+                                        {['c', 'r', 'u', 'd'].map(perm => (
+                                            <td key={perm} style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                <input type="checkbox" checked={ar[perm] || false} onChange={e => handleUpdateArray('fsdAccessRights', ar.id, perm, e.target.checked)} style={{ cursor: 'pointer', width: 16, height: 16 }} />
                                             </td>
                                         ))}
-                                        <td style={{ textAlign: 'center' }}>
-                                            <button onClick={() => handleRemoveArray('fsdAccessRights', item.id)} className="kt-btn kt-btn-icon" style={{ background: 'transparent' }}>
-                                                <Trash2 style={{ width: 14, height: 14, color: 'var(--kt-danger)' }}/>
+                                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                            <button onClick={() => handleRemoveArray('fsdAccessRights', ar.id)} className="kt-btn kt-btn-icon" style={{ background: 'transparent' }}>
+                                                <Trash2 style={{ width: 16, height: 16, color: 'var(--kt-danger)' }} />
                                             </button>
                                         </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            {/* ── 6. DEVELOPMENT ──────────────────────────────────────────────── */}
-            <div className="kt-card">
+            {/* ── 05. RANCANGAN (DOKUMEN & DIAGRAM) ─────────────────────────── */}
+            <div className="kt-card" style={{ overflow: 'hidden' }}>
                 <div className="kt-card-header">
-                    <h3 className="kt-card-title">
-                        <Code /> 6. Development & Repository
-                    </h3>
+                    <h3 className="kt-card-title"><LayoutList style={{ color: 'var(--kt-primary)' }} /> 05. Rancangan Sistem</h3>
                 </div>
-                <div className="kt-card-body" style={{ background: 'var(--kt-sidebar-bg)', color: '#fff' }}>
-                    <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                            <div style={{ padding: 12, background: 'rgba(23,198,83,0.15)', borderRadius: '50%' }}>
-                                <GitBranch style={{ width: 24, height: 24, color: 'var(--kt-success)' }}/>
-                            </div>
-                            <div>
-                                <h4 style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>Source Code Repository</h4>
-                                <p style={{ fontSize: 12, color: 'var(--kt-sidebar-text)', margin: 0 }}>Tautan ke repository Gitlab/Github proyek</p>
+                
+                {/* Tabel Dokumen Rancangan */}
+                <div style={{ overflowX: 'auto', borderBottom: '1px solid #e4e6ef' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead style={{ background: '#f4f5f8' }}>
+                            <tr>
+                                <th style={{ ...cleanTableHeaderStyle, width: 140 }}>Status</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: '25%' }}>Artefak</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: '25%' }}>PIC Reviu</th>
+                                <th style={cleanTableHeaderStyle}>Link / Referensi</th>
+                            </tr>
+                        </thead>
+                        <tbody style={{ background: '#fff' }}>
+                            {designItems.map((design, idx) => (
+                                <tr key={design.id || idx} style={{ borderBottom: '1px solid #f4f5f8' }}>
+                                    <td style={{ padding: '12px 16px' }}>
+                                        <select 
+                                            className="kt-select" 
+                                            value={design.status || 'Belum'} 
+                                            onChange={e => handleUpdateArray('fsdDesign', design.id, 'status', e.target.value)}
+                                            style={{ 
+                                                fontSize: 12, fontWeight: 700, 
+                                                color: design.status === 'Selesai' ? 'var(--kt-success)' : 'var(--kt-text-muted)' 
+                                            }}
+                                        >
+                                            <option value="Belum">Belum</option>
+                                            <option value="Selesai">Selesai</option>
+                                        </select>
+                                    </td>
+                                    <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 13, color: 'var(--kt-text-dark)' }}>{design.item}</td>
+                                    <td style={{ padding: '12px 16px' }}>
+                                        <input className="kt-input" value={design.pic || ''} onChange={e => handleUpdateArray('fsdDesign', design.id, 'pic', e.target.value)} placeholder="Nama PIC..." />
+                                    </td>
+                                    <td style={{ padding: '12px 16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <LinkIcon style={{ width: 14, height: 14, color: 'var(--kt-text-muted)' }} />
+                                            <input className="kt-input" value={design.link || ''} onChange={e => handleUpdateArray('fsdDesign', design.id, 'link', e.target.value)} placeholder="https://..." style={{ flex: 1 }}/>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Editor Mermaid untuk Rancangan (Use Case & ERD) */}
+                <div className="kt-card-body" style={{ background: '#fafafa', display: 'flex', flexDirection: 'column', gap: 32 }}>
+                    {[
+                        { title: 'Use Case Diagram', key: 'useCaseDiagram', ref: mermaidRefs.useCase, code: project.mermaid?.useCaseDiagram },
+                        { title: 'Data Model / ERD', key: 'erd', ref: mermaidRefs.erd, code: project.mermaid?.erd }
+                    ].map((diag) => (
+                        <div key={diag.key}>
+                            <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--kt-text-dark)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Code style={{ width: 16, height: 16, color: 'var(--kt-primary)' }}/> Editor {diag.title}
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: 20 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+                                    <label className="kt-label" style={{ fontSize: 11 }}>Source Code (Mermaid JS)</label>
+                                    <textarea 
+                                        className="kt-textarea" 
+                                        style={{ fontFamily: 'monospace', fontSize: 11.5, height: 280, background: '#1e1e1e', color: '#d4d4d4', width: '100%', resize: 'vertical' }}
+                                        value={diag.code || ''}
+                                        onChange={(e) => setProject(prev => ({ ...prev, mermaid: { ...prev.mermaid, [diag.key]: e.target.value } }))}
+                                    />
+                                </div>
+                                <div style={{ border: '1px solid #e4e6ef', borderRadius: 8, padding: 16, background: '#fff', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--kt-text-gray)', textTransform: 'uppercase' }}>Preview</span>
+                                        {diag.code && (
+                                            <button 
+                                                onClick={() => setFullScreenDiagram(diag.code)} 
+                                                className="kt-btn kt-btn-icon kt-btn-sm" 
+                                                style={{ background: 'var(--kt-primary-light)' }} title="Lihat Fullscreen"
+                                            >
+                                                <Maximize style={{ width: 14, height: 14, color: 'var(--kt-primary)' }} />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: '#f8f9fa', borderRadius: 6, padding: 16 }}>
+                                        {diag.code ? <div ref={diag.ref} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} /> : <span style={{ color: 'var(--kt-text-muted)', fontSize: 13, margin: 'auto' }}>Diagram belum tersedia.</span>}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div style={{ flex: 1, minWidth: 250 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.2)', padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
-                                <LinkIcon style={{ width: 14, height: 14, color: 'var(--kt-sidebar-text)' }}/>
-                                <input 
-                                    value={project.fsdSourceCode?.link || ''} 
-                                    onChange={e => setProject({
-                                        ...project, 
-                                        fsdSourceCode: { ...project.fsdSourceCode, link: e.target.value }
-                                    })} 
-                                    style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--kt-success)', fontFamily: 'monospace', fontSize: 13 }} 
-                                    placeholder="https://gitlab.customs.go.id/..."
-                                />
+                    ))}
+                </div>
+            </div>
+
+            {/* ── 06. REVIU ARSITEKTUR ────────────────────────────────────────── */}
+            <div className="kt-card" style={{ overflow: 'hidden' }}>
+                <div className="kt-card-header">
+                    <h3 className="kt-card-title"><Server style={{ color: 'var(--kt-primary)' }} /> 06. Reviu Arsitektur (Architecture Gate)</h3>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead style={{ background: '#f4f5f8' }}>
+                            <tr>
+                                <th style={{ ...cleanTableHeaderStyle, width: 160 }}>Status Persetujuan</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: '35%' }}>Komponen Arsitektur</th>
+                                <th style={cleanTableHeaderStyle}>Nama PIC Reviu</th>
+                            </tr>
+                        </thead>
+                        <tbody style={{ background: '#fff' }}>
+                            {[
+                                { key: 'database', title: 'Database & Storage', icon: Database, color: 'var(--kt-info)' },
+                                { key: 'infra', title: 'Infrastruktur & Jaringan', icon: Server, color: 'var(--kt-primary)' },
+                                { key: 'security', title: 'Security & Keamanan', icon: ShieldCheck, color: 'var(--kt-danger)' }
+                            ].map(domain => (
+                                <tr key={domain.key} style={{ borderBottom: '1px solid #f4f5f8' }}>
+                                    <td style={{ padding: '12px 16px' }}>
+                                        <select 
+                                            className="kt-select" 
+                                            value={project.fsdArchitecture?.[domain.key]?.status || 'Pending'} 
+                                            onChange={e => handleUpdateArch(domain.key, 'status', e.target.value)}
+                                            style={{ 
+                                                fontSize: 12, fontWeight: 700, 
+                                                color: project.fsdArchitecture?.[domain.key]?.status === 'Approved' ? 'var(--kt-success)' : project.fsdArchitecture?.[domain.key]?.status === 'Revisi' ? 'var(--kt-danger)' : 'var(--kt-text-muted)' 
+                                            }}
+                                        >
+                                            <option value="Pending">Pending / Draft</option>
+                                            <option value="Revisi">Perlu Revisi</option>
+                                            <option value="Approved">Approved</option>
+                                        </select>
+                                    </td>
+                                    <td style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700, color: 'var(--kt-text-dark)', fontSize: 13 }}>
+                                        <domain.icon style={{ width: 16, height: 16, color: domain.color }} /> {domain.title}
+                                    </td>
+                                    <td style={{ padding: '12px 16px' }}>
+                                        <input className="kt-input" value={project.fsdArchitecture?.[domain.key]?.pic || ''} onChange={e => handleUpdateArch(domain.key, 'pic', e.target.value)} placeholder="Nama PIC..." />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* ── 07. DEVELOPMENT (SOURCE CODE) ─────────────────────────────── */}
+            <div className="kt-card" style={{ overflow: 'hidden' }}>
+                <div className="kt-card-header">
+                    <h3 className="kt-card-title"><Code style={{ color: 'var(--kt-primary)' }} /> 07. Development</h3>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead style={{ background: '#f4f5f8' }}>
+                            <tr>
+                                <th style={{ ...cleanTableHeaderStyle, width: 160 }}>Status</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: '20%' }}>Komponen</th>
+                                <th style={{ ...cleanTableHeaderStyle, width: '25%' }}>PIC Reviu</th>
+                                <th style={cleanTableHeaderStyle}>Link Repository (GitLab)</th>
+                            </tr>
+                        </thead>
+                        <tbody style={{ background: '#fff' }}>
+                            <tr>
+                                <td style={{ padding: '16px' }}>
+                                    <select 
+                                        className="kt-select" 
+                                        value={project.fsdSourceCode?.status || 'Belum'} 
+                                        onChange={e => setProject(prev => ({...prev, fsdSourceCode: {...prev.fsdSourceCode, status: e.target.value}}))}
+                                        style={{ fontSize: 12, fontWeight: 700, color: project.fsdSourceCode?.status === 'Selesai' ? 'var(--kt-success)' : 'var(--kt-text-muted)' }}
+                                    >
+                                        <option value="Belum">Belum</option>
+                                        <option value="Selesai">Selesai</option>
+                                    </select>
+                                </td>
+                                <td style={{ padding: '16px', fontWeight: 700, color: 'var(--kt-text-dark)', fontSize: 13 }}>Source Code</td>
+                                <td style={{ padding: '16px' }}>
+                                    <input className="kt-input" value={project.fsdSourceCode?.pic || ''} onChange={e => setProject(prev => ({...prev, fsdSourceCode: {...prev.fsdSourceCode, pic: e.target.value}}))} placeholder="Nama PIC..." />
+                                </td>
+                                <td style={{ padding: '16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.03)', padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.06)' }}>
+                                        <LinkIcon style={{ width: 14, height: 14, color: 'var(--kt-text-muted)' }}/>
+                                        <input 
+                                            className="kt-input"
+                                            value={project.fsdSourceCode?.link || ''} 
+                                            onChange={e => setProject(prev => ({ ...prev, fsdSourceCode: { ...prev.fsdSourceCode, link: e.target.value } }))} 
+                                            style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--kt-primary)', fontFamily: 'monospace', fontSize: 13, padding: 0, outline: 'none' }} 
+                                            placeholder="https://gitlab.customs.go.id/..."
+                                        />
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* ── FULLSCREEN MODAL WITH ZOOM ─────────────────────────────────── */}
+            {fullScreenDiagram && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ height: 70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 30px', background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>Diagram Viewer</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: 4 }}>
+                                <button onClick={() => setZoomLevel(z => Math.max(0.25, z - 0.25))} className="kt-btn kt-btn-icon kt-btn-sm" style={{ background: 'transparent', color: '#fff' }}><ZoomOut size={18} /></button>
+                                <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, padding: '0 12px', display: 'flex', alignItems: 'center', minWidth: 60, justifyContent: 'center' }}>{Math.round(zoomLevel * 100)}%</div>
+                                <button onClick={() => setZoomLevel(1)} className="kt-btn kt-btn-icon kt-btn-sm" style={{ background: 'transparent', color: '#fff' }}><RefreshCw size={16} /></button>
+                                <button onClick={() => setZoomLevel(z => z + 0.25)} className="kt-btn kt-btn-icon kt-btn-sm" style={{ background: 'transparent', color: '#fff' }}><ZoomIn size={18} /></button>
                             </div>
+                            <button onClick={closeFullscreen} style={{ background: 'var(--kt-danger)', border: 'none', width: 40, height: 40, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 12 }}>
+                                <X style={{ width: 22, height: 22, color: '#fff' }} />
+                            </button>
+                        </div>
+                    </div>
+                    <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 40 }}>
+                        <div style={{ background: '#fff', padding: '40px 60px', borderRadius: 16, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', minWidth: '60%', transform: `scale(${zoomLevel})`, transformOrigin: 'top center', transition: 'transform 0.2s ease-out', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                            <div ref={fullScreenRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} />
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
         </div>
     );

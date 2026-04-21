@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
   Bot, Download, FileText, Settings, Shield,
   Users, Zap, Loader2, ChevronRight, Upload,
-  X, CheckCircle2, AlertCircle, Cpu, Sparkles,
+  X, CheckCircle2, AlertCircle, Cpu, Sparkles, Link2
 } from 'lucide-react';
 
 import { TabKajian }     from './components/TabKajian.jsx';
@@ -10,6 +10,7 @@ import { TabPenelitian } from './components/TabPenelitian.jsx';
 import { TabBRD }        from './components/TabBRD.jsx';
 import { TabFSD }        from './components/TabFSD.jsx';
 import { TabCharter }    from './components/TabCharter.jsx';
+import { TabRTM }        from './components/TabRTM.jsx'; 
 
 import {
   ROLE_RATES_2023,
@@ -28,27 +29,36 @@ import { generateExcelDocument }   from './utils/excelGenerator.js';
 const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
 const TABS = [
-  { id: 'kajian',     label: 'Kajian Kebutuhan', short: 'Kajian',     icon: FileText,  step: '01' },
-  { id: 'penelitian', label: 'Penelitian (UCP)',  short: 'Penelitian', icon: Zap,       step: '02' },
-  { id: 'brd',        label: 'BRD',               short: 'BRD',        icon: Users,     step: '03' },
-  { id: 'fsd',        label: 'FSD',               short: 'FSD',        icon: Settings,  step: '04' },
-  { id: 'charter',    label: 'Project Charter',   short: 'Charter',    icon: Shield,    step: '05' },
+  { id: 'kajian',     label: 'Kajian Kebutuhan',   short: 'Kajian',     icon: FileText,  step: '01' },
+  { id: 'penelitian', label: 'Penelitian (UCP)',   short: 'Penelitian', icon: Zap,       step: '02' },
+  { id: 'brd',        label: 'BRD',                short: 'BRD',        icon: Users,     step: '03' },
+  { id: 'charter',    label: 'Project Charter',    short: 'Charter',    icon: Shield,    step: '04' },
+  { id: 'fsd',        label: 'FSD',                short: 'FSD',        icon: Settings,  step: '05' },
+  { id: 'rtm',        label: 'Traceability (RTM)', short: 'RTM',        icon: Link2,     step: '06' },
 ];
 
 // ─── Initial project state factory ───────────────────────────────────────────
 const makeInitialProject = () => ({
-  nama:                'Pengembangan Modul Baru CEISA 4.0',
-  pengampu:            'Direktorat Informasi Kepabeanan dan Cukai',
-  unitPenanggungJawab: 'Subdirektorat Pengembangan Sistem Informasi',
-  namaPIC:             '',
-  kontakPIC:           '',
-  latarBelakang:       '',
-  masalahIsu:          '',
-  targetPenyelesaian:  '',
-  targetOutcome:       '',
-  outcomeKeluaran:     '',
-  businessValue:       '',
-  alurBisnisProses:    '',
+  nama:                   'Pengembangan Modul Baru CEISA 4.0',
+  uraianUsulan:           '', // <--- NEW
+  pengampu:               'Direktorat Informasi Kepabeanan dan Cukai',
+  nomorND:                '', // <--- NEW
+  tanggalND:              '', // <--- NEW
+  tanggalPembuatan:       '', // <--- NEW
+  unitPenanggungJawab:    'Subdirektorat Pengembangan Sistem Informasi',
+  namaPIC:                '',
+  kontakPIC:              '',
+  latarBelakang:          '',
+  tujuan:                 '', // <--- NEW
+  gambaranKondisiSaatIni: '', 
+  masalahIsu:             '',
+  targetPenyelesaian:     '', 
+  targetOutcome:          '',
+  outcomeKeluaran:        '',
+  businessValue:          '',
+  alurBisnisProses:       '',
+  tautanMockup:           '', // <--- NEW
+  integrasiSSO:           '', // <--- NEW
   phm: 20,
 
   actors:    [],
@@ -57,14 +67,14 @@ const makeInitialProject = () => ({
   efImpacts:  EF_FACTORS.reduce((acc, f)  => ({ ...acc, [f.id]: 3 }), {}),
 
   bvEffort: {
-    efficiency:  { label: 'Med',          score: 3 },
-    users:       { label: '100-500',      score: 3 },
-    regulatory:  { label: 'Recommended', score: 3 },
-    bia:         { label: 'Med',          score: 3 },
-    duration:    { label: '3-6 Months',   score: 3 },
-    technology:  { label: 'Existing',     score: 1 },
-    systems:     { label: 'None',         score: 1 },
-    strategy:    { label: 'High',         score: 1 },
+    efficiency:  { label: 'Penggunaan Aplikasi Existing', score: 1 },
+    users:       { label: 'Pegawai Bea Cukai',            score: 3 },
+    regulatory:  { label: 'UU/ Instruksi Presiden',       score: 5 },
+    bia:         { label: 'IKU Satker',                   score: 1 },
+    duration:    { label: '< 3 bulan',                    score: 1 },
+    technology:  { label: 'Teknologi Baru',               score: 2 },
+    systems:     { label: '1 Sistem Terkait',             score: 2 },
+    strategy:    { label: 'Insource',                     score: 2 },
   },
 
   kakStructure: PHASE_DISTRIBUTION.map((p, i) => ({
@@ -75,9 +85,10 @@ const makeInitialProject = () => ({
 
   brdProcessAnalysis: { modul: '', subModul: '', eaMapping: '', notes: '' },
   asIsToBe:               [],
-  kebutuhanFungsional:    [],
-  kebutuhanNonFungsional: [],
+  kebutuhanFungsional:    [], 
+  kebutuhanNonFungsional: [], 
   risikoBisnis:           [],
+  rtm:                    [], // NEW RTM Array Initialization
 
   bia: {
     operasional: 'Medium', finansial: 'Low',
@@ -143,38 +154,58 @@ const makeInitialProject = () => ({
   fsdMockups:    [],
   fsdAccessRights: [],
   fsdDesign: [
-    { id: 'd1', item: 'Use Case Diagram', pic: '', link: '' },
-    { id: 'd2', item: 'Activity Diagram', pic: '', link: '' },
-    { id: 'd3', item: 'Class Diagram',    pic: '', link: '' },
-    { id: 'd4', item: 'Data Model / ERD', pic: '', link: '' },
+    { id: 'd1', status: 'Belum', item: 'Use Case Diagram', pic: '', link: '' },
+    { id: 'd2', status: 'Belum', item: 'Activity Diagram', pic: '', link: '' },
+    { id: 'd3', status: 'Belum', item: 'Class Diagram',    pic: '', link: '' },
+    { id: 'd4', status: 'Belum', item: 'Rancangan Basis Data (ERD & Kamus Data)', pic: '', link: '' },
+    { id: 'd5', status: 'Belum', item: 'Rancangan Service / API Collection', pic: '', link: '' },
   ],
-  fsdSourceCode: { pic: '', link: '' },
-
-  charter: {
-    scope:           '',
-    outOfScope:      '',
-    supportingReqs:  '',
-    specialReqs:     '',
-    bizProcessOwner: '',
-    stakeholders:    '',
-    endUsers:        '',
-    benefits:        '',
-    risks:           '',
-    constraints:     '',
-    assumptions:     '',
-    timeline: [
-      { id: 1, milestone: 'Analisis & Desain', start: '', end: '', note: '' },
-      { id: 2, milestone: 'Development',       start: '', end: '', note: '' },
-      { id: 3, milestone: 'Testing & UAT',     start: '', end: '', note: '' },
-      { id: 4, milestone: 'Deployment',        start: '', end: '', note: '' },
-    ],
-    team: [
-      { id: 1, name: '', role: 'Project Manager', responsibility: 'Manajemen Proyek' },
-      { id: 2, name: '', role: 'System Analyst',  responsibility: 'Analisis & Desain' },
-      { id: 3, name: '', role: 'Developer',       responsibility: 'Coding & Integrasi' },
-    ],
+fsdSourceCode: { status: 'Belum', pic: '', link: '' }, // <--- Diperbarui  
+  fsdArchitecture: { // <--- ADD THIS
+    database: { pic: '', status: 'Pending' },
+    infra:    { pic: '', status: 'Pending' },
+    security: { pic: '', status: 'Pending' }
   },
 
+charter: {
+    scope:              '',
+    outOfScope:         '',
+    stakeholders:       '',
+    endUsers:           '',
+    manfaat:            '', // NEW
+    kasusBisnis:        '',
+    sasaran:            '',
+    faktorPenentu:      '',
+    areaLayanan:        '', // NEW
+    catatanProbis:      '', // NEW
+    prosesTerdampak:    '',
+    tanggalMulai:       '',
+    tanggalSelesai:     '',
+    kebutuhanPendukung: '',
+    kebutuhanKhusus:    '',
+    risks:              '',
+    constraints:        '',
+    assumptions:        '',
+    timeline: [
+      { id: 1, milestone: 'Project Charter Template', start: '', end: '', note: '' },
+      { id: 2, milestone: 'Form Project Team / Preliminary Review / Scope', start: '', end: '', note: '' },
+      { id: 3, milestone: 'Finalize Project Plan / Charter / Kick Off', start: '', end: '', note: '' },
+      { id: 4, milestone: 'Define Phase', start: '', end: '', note: '' },
+      { id: 5, milestone: 'Measurement Phase', start: '', end: '', note: '' },
+      { id: 6, milestone: 'Analysis Phase', start: '', end: '', note: '' },
+      { id: 7, milestone: 'Improvement Phase', start: '', end: '', note: '' },
+      { id: 8, milestone: 'Control Phase', start: '', end: '', note: '' },
+      { id: 9, milestone: 'Project Summary Report and Close Out', start: '', end: '', note: '' },
+    ],
+    team: [
+      { id: 1, name: '', role: 'Project Manager', responsibility: '' },
+      { id: 2, name: '', role: 'System Analyst',  responsibility: '' },
+      { id: 3, name: '', role: 'Data Modeler',  responsibility: '' },
+      { id: 4, name: '', role: 'Product Engineer',  responsibility: '' },
+      { id: 5, name: '', role: 'Quality Control / Technical Writer',  responsibility: '' },
+    ],
+  },
+  
   signatures: {
     date:       '',
     approvedBy: { name: '', nip: '', role: '' },
@@ -199,7 +230,9 @@ const formatAIArray = (arr, prefix) => {
         kebutuhan: item, 
         deskripsi: item,
         risk: item,
-        prioritas: 'Medium' 
+        prioritas: 'Medium',
+        detailFungsi: '',
+        alasan: ''
       };
     }
     
@@ -210,7 +243,9 @@ const formatAIArray = (arr, prefix) => {
       // Aggressively map to 'kebutuhan' so it shows up in TabKajian table
       kebutuhan: item.kebutuhan || item.deskripsi || item.description || item.requirement || '',
       deskripsi: item.deskripsi || item.kebutuhan || item.description || item.requirement || '',
-      prioritas: item.prioritas || 'Medium'
+      prioritas: item.prioritas || 'Medium',
+      detailFungsi: item.detailFungsi || item.subfungsi || '',
+      alasan: item.alasan || item.reason || ''
     };
   });
 };
@@ -221,7 +256,7 @@ export default function App() {
   const [uploadStatus, setUploadStatus] = useState(STATUS.IDLE);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadError,  setUploadError]  = useState(null);
-  const [aiMeta,       setAiMeta]       = useState({ usedModel: null, usage: null, log: [] });
+  const [aiMeta,       setAiMeta]       = useState({ usedModel: null, enrichModel: null, usage: null, log: [] });
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
   const [project,      setProject]      = useState(makeInitialProject);
 
@@ -260,7 +295,9 @@ export default function App() {
 
     return {
       uaw, uucw, uucp, tcf, ef, ucp,
-      totalPersonHours, workingDays, totalManMonths,
+      totalPersonHours, workingDays,
+      totalMandays: workingDays,   // alias — used by TabCharter & excelGenerator
+      totalManMonths,
       kakTableData, runningTotalCost, warrantyCost, subTotal, ppn, grandTotal,
       totalBV, totalEffort, priority,
     };
@@ -333,6 +370,7 @@ export default function App() {
       const ai = result.data;
       setAiMeta({
         usedModel:     result.usedModel,
+        enrichModel:   result.enrichModel,
         triageModel:   result.triageModel,
         usage:         result.usage,
         selectedPages: result.selectedPages,
@@ -351,19 +389,23 @@ export default function App() {
 
         return {
           ...prev,
-          nama:                ai.nama                || prev.nama,
-          pengampu:            ai.pengampu            || prev.pengampu,
-          unitPenanggungJawab: ai.unitPenanggungJawab || prev.unitPenanggungJawab,
-          namaPIC:             ai.namaPIC             || prev.namaPIC,
-          kontakPIC:           ai.kontakPIC           || prev.kontakPIC,
-          latarBelakang:       ai.latarBelakang       || prev.latarBelakang,
-          masalahIsu:          ai.masalahIsu          || prev.masalahIsu,
-          targetPenyelesaian:  ai.targetPenyelesaian  || prev.targetPenyelesaian,
-          targetOutcome:       ai.targetOutcome       || prev.targetOutcome,
-          outcomeKeluaran:     ai.outcomeKeluaran     || prev.outcomeKeluaran,
-          businessValue:       ai.businessValue       || prev.businessValue,
-          alurBisnisProses:    ai.alurBisnisProses    || prev.alurBisnisProses,
-          bia:                 ai.bia                 || prev.bia,
+          nama:                   ai.nama                   || prev.nama,
+          pengampu:               ai.pengampu               || prev.pengampu,
+          unitPenanggungJawab:    ai.unitPenanggungJawab    || prev.unitPenanggungJawab,
+          namaPIC:                ai.namaPIC                || prev.namaPIC,
+          kontakPIC:              ai.kontakPIC              || prev.kontakPIC,
+          latarBelakang:          ai.latarBelakang          || prev.latarBelakang,
+          tujuan:                 ai.tujuan                 || prev.tujuan,                 // <--- NEW
+          gambaranKondisiSaatIni: ai.gambaranKondisiSaatIni || prev.gambaranKondisiSaatIni,
+          masalahIsu:             ai.masalahIsu             || prev.masalahIsu,
+          targetPenyelesaian:     ai.targetPenyelesaian     || prev.targetPenyelesaian,
+          targetOutcome:          ai.targetOutcome          || prev.targetOutcome,
+          outcomeKeluaran:        ai.outcomeKeluaran        || prev.outcomeKeluaran,
+          businessValue:          ai.businessValue          || prev.businessValue,
+          alurBisnisProses:       ai.alurBisnisProses       || prev.alurBisnisProses,
+          tautanMockup:           ai.tautanMockup           || prev.tautanMockup,           // <--- NEW
+          integrasiSSO:           ai.integrasiSSO           || prev.integrasiSSO,           // <--- NEW
+          bia:                    ai.bia                    || prev.bia,
 
           // Safely map arrays so they always have IDs and correct structure
           kebutuhanFungsional:    kfSource ? formatAIArray(kfSource, 'kf') : prev.kebutuhanFungsional,
@@ -373,7 +415,7 @@ export default function App() {
           useCases:               Array.isArray(ai.useCases) && ai.useCases.length > 0 ? formatAIArray(ai.useCases, 'uc') : prev.useCases,
           
           asIsToBe:               normalizeAsIsToBe(ai.asIsToBe) || prev.asIsToBe,
-          brdProcessAnalysis:     ai.brdProcessAnalysis             || prev.brdProcessAnalysis,
+          brdProcessAnalysis:     ai.brdProcessAnalysis          || prev.brdProcessAnalysis,
 
           mermaid: {
             processFlow:    cleanMermaid(ai.mermaid?.processFlow)    || prev.mermaid.processFlow,
@@ -394,7 +436,13 @@ export default function App() {
             ...prev.charter,
             scope:    ai.alurBisnisProses || prev.charter.scope,
             benefits: ai.businessValue    || prev.charter.benefits,
+            kasusBisnis:   ai.kasusBisnis      || prev.charter.kasusBisnis,
+            sasaran:       ai.sasaran          || prev.charter.sasaran,
+            faktorPenentu: ai.faktorPenentu    || prev.charter.faktorPenentu,
             risks:    Array.isArray(ai.risikoBisnis) && ai.risikoBisnis.length
+            
+
+            
               ? ai.risikoBisnis.map(r => r.risk).join('\n')
               : prev.charter.risks,
             team: ai.detectedPeople?.length
@@ -580,21 +628,22 @@ export default function App() {
         {/* AI model badge */}
         {sidebarOpen && (
           <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(99,102,241,0.12)',
-              border: '1px solid rgba(99,102,241,0.2)',
-              borderRadius: 7, padding: '5px 10px',
-            }}>
-              <Cpu style={{ width: 12, height: 12, color: '#a5b4fc', flexShrink: 0 }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.04em' }}>
-                Claude Opus
-              </span>
-              {aiMeta.usage && (
-                <span style={{ fontSize: 9, color: 'rgba(165,180,252,0.6)', marginLeft: 'auto' }}>
-                  {(aiMeta.usage.output_tokens || 0).toLocaleString()} tok
-                </span>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 7, padding: '4px 10px' }}>
+                <Cpu style={{ width: 11, height: 11, color: '#a5b4fc', flexShrink: 0 }} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.04em' }}>Haiku · Triage</span>
+                {aiMeta.usage?.triage && <span style={{ fontSize: 9, color: 'rgba(165,180,252,0.6)', marginLeft: 'auto' }}>{(aiMeta.usage.triage.input_tokens || 0).toLocaleString()} in</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 7, padding: '4px 10px' }}>
+                <Cpu style={{ width: 11, height: 11, color: '#a5b4fc', flexShrink: 0 }} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.04em' }}>Opus · Analysis</span>
+                {aiMeta.usage?.analysis && <span style={{ fontSize: 9, color: 'rgba(165,180,252,0.6)', marginLeft: 'auto' }}>{(aiMeta.usage.analysis.output_tokens || 0).toLocaleString()} out</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 7, padding: '4px 10px' }}>
+                <Cpu style={{ width: 11, height: 11, color: '#a5b4fc', flexShrink: 0 }} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a5b4fc', letterSpacing: '0.04em' }}>Sonnet · Enrich</span>
+                {aiMeta.usage?.enrich && <span style={{ fontSize: 9, color: 'rgba(165,180,252,0.6)', marginLeft: 'auto' }}>{(aiMeta.usage.enrich.output_tokens || 0).toLocaleString()} out</span>}
+              </div>
             </div>
           </div>
         )}
@@ -696,17 +745,21 @@ export default function App() {
 
           {/* AI usage info */}
           {uploadStatus === STATUS.DONE && aiMeta.usage && (
-            <div className="kt-notice" style={{ marginBottom: 20, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)' }}>
-              <Sparkles style={{ width: 16, height: 16, color: '#6366f1', flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: 12.5, color: '#4f46e5' }}>
-                Analisis selesai menggunakan <strong>{aiMeta.usedModel}</strong> — {(aiMeta.usage.input_tokens || 0).toLocaleString()} input token, {(aiMeta.usage.output_tokens || 0).toLocaleString()} output token.
-              </span>
-              <button
-                onClick={() => setUploadStatus(STATUS.IDLE)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', padding: 0, lineHeight: 1 }}
-              >
-                <X style={{ width: 14, height: 14 }} />
-              </button>
+            <div className="kt-notice" style={{ marginBottom: 20, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                <Sparkles style={{ width: 16, height: 16, color: '#6366f1', flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 12.5, color: '#4f46e5', fontWeight: 600 }}>
+                  Analisis selesai · {(aiMeta.usage.input_tokens || 0).toLocaleString()} in / {(aiMeta.usage.output_tokens || 0).toLocaleString()} out tokens
+                </span>
+                <button onClick={() => setUploadStatus(STATUS.IDLE)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', padding: 0, lineHeight: 1 }}>
+                  <X style={{ width: 14, height: 14 }} />
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(79,70,229,0.7)', paddingLeft: 24, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {aiMeta.triageModel  && <span>⚡ {aiMeta.triageModel}: {(aiMeta.usage.triage?.input_tokens||0).toLocaleString()} in</span>}
+                {aiMeta.usedModel   && <span>🧠 {aiMeta.usedModel}: {(aiMeta.usage.analysis?.output_tokens||0).toLocaleString()} out</span>}
+                {aiMeta.enrichModel && <span>✨ {aiMeta.enrichModel}: {(aiMeta.usage.enrich?.output_tokens||0).toLocaleString()} out</span>}
+              </div>
             </div>
           )}
 
@@ -790,6 +843,7 @@ export default function App() {
                 <TabKajian
                   project={project} setProject={setProject}
                   uploadedFile={uploadedFile} aiMeta={aiMeta}
+                  calc={calc}  
                   handleUpdateArray={handleUpdateArray}
                   handleAddArray={handleAddArray}
                   handleRemoveArray={handleRemoveArray}
@@ -812,6 +866,10 @@ export default function App() {
                   handleRemoveArray={handleRemoveArray}
                 />
               )}
+              {activeTab === 'charter' && (
+                <TabCharter project={project} setProject={setProject} calc={calc} 
+                />
+              )}
               {activeTab === 'fsd' && (
                 <TabFSD
                   project={project} setProject={setProject}
@@ -821,8 +879,13 @@ export default function App() {
                   handleRemoveArray={handleRemoveArray}
                 />
               )}
-              {activeTab === 'charter' && (
-                <TabCharter project={project} setProject={setProject} calc={calc} />
+              {activeTab === 'rtm' && (
+                <TabRTM 
+                  project={project} setProject={setProject} 
+                  handleUpdateArray={handleUpdateArray} 
+                  handleAddArray={handleAddArray} 
+                  handleRemoveArray={handleRemoveArray} 
+                />
               )}
             </div>
           )}
@@ -844,7 +907,7 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {aiMeta.usedModel && (
               <span style={{ fontSize: 10.5, color: 'rgba(99,102,241,0.6)', fontWeight: 600, letterSpacing: '0.04em' }}>
-                {aiMeta.usedModel}
+                {aiMeta.usedModel}{aiMeta.enrichModel ? ` + ${aiMeta.enrichModel}` : ''}
               </span>
             )}
             <span style={{ fontSize: 11, color: 'var(--kt-text-muted)', letterSpacing: '0.04em' }}>
