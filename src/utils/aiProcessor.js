@@ -6,7 +6,7 @@
 //  PASS 3 — Fill & Enrich (claude-sonnet-4-6, remaining fields + mermaid)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRIAGE_MODEL   = "claude-haiku-4-5-20251001";
+const TRIAGE_MODEL  = "claude-haiku-4-5-20251001";
 const ANALYSIS_MODEL = "claude-opus-4-6";
 const ENRICH_MODEL   = "claude-sonnet-4-6";
 const CLAUDE_API_URL = "/anthropic/v1/messages"; // proxied via vite.config.js
