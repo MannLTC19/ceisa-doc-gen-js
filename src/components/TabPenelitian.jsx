@@ -293,7 +293,7 @@ export const TabPenelitian = ({
         <div className="kt-card" style={{ overflow: 'hidden' }}>
             <div className="kt-card-header" style={{ borderBottom: 'none', paddingBottom: 12 }}>
                 <h3 className="kt-card-title"><CheckSquare style={{ color: 'var(--kt-primary)' }} /> 06. Kebutuhan Non-Fungsional</h3>
-                <button onClick={() => handleAddArray('kebutuhanNonFungsional', { id: `nfr_${Date.now()}`, deskripsi: '', alasan: '' })} className="kt-btn kt-btn-primary kt-btn-sm" style={{ borderRadius: 8 }}>
+                <button onClick={() => handleAddArray('kebutuhanNonFungsional', { id: `nfr_${Date.now()}`, fungsi: '', deskripsi: '' })} className="kt-btn kt-btn-primary kt-btn-sm" style={{ borderRadius: 8 }}>
                     <Plus style={{ width: 14, height: 14 }} /> Tambah
                 </button>
             </div>
@@ -302,8 +302,8 @@ export const TabPenelitian = ({
                     <thead>
                         <tr>
                             <th style={{ ...cleanTableHeaderStyle, width: 60, textAlign: 'center' }}>No</th>
+                            <th style={{ ...cleanTableHeaderStyle, width: 200 }}>Fungsi Kebutuhan</th>
                             <th style={cleanTableHeaderStyle}>Deskripsi</th>
-                            <th style={cleanTableHeaderStyle}>Alasan</th>
                             <th style={{ ...cleanTableHeaderStyle, width: 60 }}></th>
                         </tr>
                     </thead>
@@ -315,10 +315,10 @@ export const TabPenelitian = ({
                                 <tr key={item?.id || idx} style={{ borderBottom: '1px solid #f4f5f8' }}>
                                     <td style={{ textAlign: 'center', fontWeight: 700, color: '#a1a5b7', padding: '16px' }}>{idx + 1}</td>
                                     <td style={{ padding: '12px 16px' }}>
-                                        <textarea value={item?.deskripsi || ''} onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'deskripsi', e.target.value)} className="kt-textarea" rows={2} placeholder="Kapasitas penyimpanan besar…" />
+                                        <textarea value={item?.fungsi || ''} onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'fungsi', e.target.value)} className="kt-textarea" rows={2} style={{ fontWeight: 600 }} placeholder="Keamanan Data…" />
                                     </td>
                                     <td style={{ padding: '12px 16px' }}>
-                                        <textarea value={item?.alasan || ''} onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'alasan', e.target.value)} className="kt-textarea" rows={2} placeholder="Menampung lampiran dokumen…" />
+                                        <textarea value={item?.deskripsi || ''} onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'deskripsi', e.target.value)} className="kt-textarea" rows={2} placeholder="Kapasitas penyimpanan besar…" />
                                     </td>
                                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                                         <button onClick={() => handleRemoveArray('kebutuhanNonFungsional', item.id)} className="kt-btn kt-btn-icon" style={{ background: 'transparent' }}>
@@ -443,7 +443,7 @@ export const TabPenelitian = ({
                             <th style={{ ...cleanTableHeaderStyle, width: 120 }}>Nama UC</th>
                             <th style={{ ...cleanTableHeaderStyle, width: 100 }}>Prioritas</th>
                             <th style={{ ...cleanTableHeaderStyle, width: 140 }}>Kondisi Awal / Akhir</th>
-                            <th style={{ ...cleanTableHeaderStyle, width: 150 }}>Alur Utama / Alternatif</th>
+                            <th style={{ ...cleanTableHeaderStyle, width: 220 }}>Alur Utama / Alt. / Catatan (Acceptance)</th>
                             <th style={{ ...cleanTableHeaderStyle, width: 80, textAlign: 'center' }}>Jml Trans.</th>
                             <th style={{ ...cleanTableHeaderStyle, width: 110, textAlign: 'center' }}>Complexity</th>
                             <th style={{ ...cleanTableHeaderStyle, width: 80, textAlign: 'center', background: '#fff8dd', color: '#ffc700' }}>UUCW</th>
@@ -479,6 +479,7 @@ export const TabPenelitian = ({
                                         <td style={{ padding: '8px', verticalAlign: 'top' }}>
                                             <textarea value={uc.mainFlow || ''} onChange={e => handleUpdateArray('useCases', uc.id, 'mainFlow', e.target.value)} className="kt-textarea" rows={2} style={{ fontSize: 11, marginBottom: 4 }} placeholder="Alur Utama..."/>
                                             <textarea value={uc.altFlow || ''} onChange={e => handleUpdateArray('useCases', uc.id, 'altFlow', e.target.value)} className="kt-textarea" rows={2} style={{ fontSize: 11 }} placeholder="Alur Alternatif..."/>
+                                            <textarea value={uc.catatan || ''} onChange={e => handleUpdateArray('useCases', uc.id, 'catatan', e.target.value)} className="kt-textarea" rows={3} style={{ fontSize: 11, borderColor: 'var(--kt-primary-light)', background: '#f8f9fa' }} placeholder="Catatan / Acceptance Criteria..."/>
                                         </td>
                                         <td style={{ padding: '8px', textAlign: 'center', verticalAlign: 'top' }}>
                                             <input type="number" min="1" value={uc.transactions || 1} onChange={e => handleUpdateArray('useCases', uc.id, 'transactions', parseInt(e.target.value) || 1)} className="kt-input" style={{ textAlign: 'center', fontWeight: 800, padding: '6px' }} />

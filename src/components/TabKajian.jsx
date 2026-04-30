@@ -379,9 +379,8 @@ export const TabKajian = ({
           <button
             onClick={() => handleAddArray('kebutuhanNonFungsional', {
               id: `nfr_${Date.now()}`,
-              kategori: 'Security',
+              fungsi: '',    // Diubah dari kategori menjadi fungsi
               deskripsi: '',
-              alasan: '',
             })}
             className="kt-btn kt-btn-primary kt-btn-sm"
             style={{ borderRadius: 8 }}
@@ -394,16 +393,15 @@ export const TabKajian = ({
             <thead>
               <tr>
                 <th style={{ ...cleanTableHeaderStyle, width: 60, textAlign: 'center' }}>No</th>
-                <th style={{ ...cleanTableHeaderStyle, width: 160 }}>Kategori</th>
+                <th style={{ ...cleanTableHeaderStyle, width: 200 }}>Fungsi Kebutuhan</th>
                 <th style={cleanTableHeaderStyle}>Deskripsi Kebutuhan</th>
-                <th style={cleanTableHeaderStyle}>Alasan</th>
                 <th style={{ ...cleanTableHeaderStyle, width: 60 }}></th>
               </tr>
             </thead>
             <tbody style={{ background: '#fff' }}>
               {(project.kebutuhanNonFungsional || []).length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: '#a1a5b7', fontSize: 13 }}>
+                  <td colSpan={4} style={{ textAlign: 'center', padding: '30px', color: '#a1a5b7', fontSize: 13 }}>
                     Belum ada kebutuhan non-fungsional. Klik "+ Tambah" atau upload TOR untuk mengisi otomatis.
                   </td>
                 </tr>
@@ -413,37 +411,22 @@ export const TabKajian = ({
                     <td style={{ textAlign: 'center', fontWeight: 700, color: '#a1a5b7', padding: '16px' }}>
                       {idx + 1}
                     </td>
-                    <td style={{ padding: '12px 16px', verticalAlign: 'middle' }}>
-                      <select
-                        value={item?.kategori || 'Security'}
-                        onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'kategori', e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #e4e6ef', fontSize: 13, fontWeight: 600, color: 'var(--kt-text-dark)', outline: 'none' }}
-                      >
-                        <option>Security</option>
-                        <option>Performance</option>
-                        <option>Availability</option>
-                        <option>Scalability</option>
-                        <option>Compliance</option>
-                        <option>Usability</option>
-                        <option>Maintainability</option>
-                      </select>
-                    </td>
                     <td style={{ padding: '12px 16px' }}>
                       <textarea
-                        value={item?.deskripsi || ''}
-                        onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'deskripsi', e.target.value)}
-                        style={{ width: '100%', minHeight: 44, padding: '10px 14px', border: '1px solid #e4e6ef', borderRadius: 6, fontSize: 13, outline: 'none', resize: 'vertical', color: 'var(--kt-text-dark)' }}
-                        placeholder="Deskripsi kebutuhan (Cth: Kapasitas penyimpanan besar)…"
+                        value={item?.fungsi || ''}
+                        onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'fungsi', e.target.value)}
+                        style={{ width: '100%', minHeight: 44, padding: '10px 14px', border: '1px solid #e4e6ef', borderRadius: 6, fontSize: 13, outline: 'none', resize: 'vertical', color: 'var(--kt-text-dark)', fontWeight: 600 }}
+                        placeholder="Cth: Keamanan Data..."
                         onFocus={(e) => e.target.style.borderColor = 'var(--kt-primary)'}
                         onBlur={(e) => e.target.style.borderColor = '#e4e6ef'}
                       />
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <textarea
-                        value={item?.alasan || ''}
-                        onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'alasan', e.target.value)}
-                        style={{ width: '100%', minHeight: 44, padding: '10px 14px', border: '1px solid #e4e6ef', borderRadius: 6, fontSize: 13, outline: 'none', resize: 'vertical', color: 'var(--kt-text-gray)' }}
-                        placeholder="Alasan (Cth: Menampung lampiran dokumen)…"
+                        value={item?.deskripsi || ''}
+                        onChange={e => handleUpdateArray('kebutuhanNonFungsional', item.id, 'deskripsi', e.target.value)}
+                        style={{ width: '100%', minHeight: 44, padding: '10px 14px', border: '1px solid #e4e6ef', borderRadius: 6, fontSize: 13, outline: 'none', resize: 'vertical', color: 'var(--kt-text-dark)' }}
+                        placeholder="Deskripsi kebutuhan..."
                         onFocus={(e) => e.target.style.borderColor = 'var(--kt-primary)'}
                         onBlur={(e) => e.target.style.borderColor = '#e4e6ef'}
                       />

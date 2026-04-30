@@ -65,7 +65,7 @@ const buildKajian = (workbook, project, calc) => {
     const sheet = workbook.addWorksheet('01 - Kajian Kebutuhan');
     sheet.columns = [
         { width: 30 }, { width: 35 }, { width: 30 }, { width: 25 }, 
-        { width: 30 }, { width: 30 }, { width: 30 }, { width: 30 }, { width: 15 }, { width: 15 }
+        { width: 30 }, { width: 30 }, { width: 30 }, { width: 30 }, { width: 25 }, { width: 15 } // Lebarkan kolom catatan UC
     ];
     const { addHeader, addKeyValue, addTable } = makeHelpers(sheet);
 
@@ -108,7 +108,7 @@ const buildKajian = (workbook, project, calc) => {
 
     addHeader('06. ALUR PROSES BISNIS');
     addKeyValue('Deskripsi Alur Bisnis Proses', project?.alurBisnisProses);
-    addKeyValue('Source Code BPMN (Mermaid JS)', project?.mermaid?.processFlow); // <--- Ditambahkan di sini
+    addKeyValue('Source Code BPMN (Mermaid JS)', project?.mermaid?.processFlow); 
     addKeyValue('Tautan Mock Up / Figma', project?.tautanMockup);
     addKeyValue('Integrasi SSO', project?.integrasiSSO);
     sheet.addRow([]);
@@ -117,9 +117,10 @@ const buildKajian = (workbook, project, calc) => {
     const kfData = (project?.kebutuhanFungsional || []).map((kf, i) => [i + 1, kf.kebutuhan, kf.detailFungsi]);
     addTable(['No', 'Fungsi', 'Deskripsi / Detail Fungsi'], kfData);
 
+    // UPDATE: Hapus kolom Alasan
     addHeader('08. KEBUTUHAN NON-FUNGSIONAL');
-    const knfData = (project?.kebutuhanNonFungsional || []).map((knf, i) => [i + 1, knf.deskripsi, knf.alasan]);
-    addTable(['No', 'Deskripsi Kebutuhan', 'Alasan'], knfData);
+    const knfData = (project?.kebutuhanNonFungsional || []).map((knf, i) => [i + 1, knf.fungsi, knf.deskripsi]);
+    addTable(['No', 'Fungsi Kebutuhan', 'Deskripsi'], knfData);
 
     addHeader('09. ANALISIS RISIKO BISNIS');
     const riskData = (project?.risikoBisnis || []).map((r, i) => [i + 1, r.risk, r.impact, r.mitigasi, r.level]);
@@ -140,15 +141,25 @@ const buildKajian = (workbook, project, calc) => {
     ]);
     addTable(['Kode Aktor', 'Nama Aktor', 'Deskripsi', 'Jenis', 'UAW Score'], actorData);
 
+    // UPDATE: Tambahkan Catatan / Acceptance Criteria
     addHeader('12. USE CASE DESKRIPSI');
     const ucData = (project?.useCases || []).map((uc, i) => [
         `MOD-UC-${i + 1}`, uc.name || uc.deskripsi, uc.prioritas, uc.actorRef, 
-        uc.preCond, uc.postCond, uc.mainFlow, uc.altFlow, uc.transactions,
+        uc.preCond, uc.postCond, uc.mainFlow, uc.altFlow, uc.catatan || '-', uc.transactions, // Ditambah uc.catatan
         getUseCaseComplexity(uc.transactions)?.weight || 0
     ]);
-    addTable(['Kode UC', 'Nama UC', 'Prioritas', 'Aktor', 'Kondisi Awal', 'Kondisi Akhir', 'Alur Utama', 'Alur Alternatif', 'Jml UI', 'UUCW'], ucData);
+    addTable(['Kode UC', 'Nama UC', 'Prioritas', 'Aktor', 'Kondisi Awal', 'Kondisi Akhir', 'Alur Utama', 'Alur Alternatif', 'Catatan / Acceptance Criteria', 'Jml UI', 'UUCW'], ucData);
 
-    addHeader('13. BUSINESS VALUE VS EFFORT');
+    // UPDATE: Menggunakan Parameter BV Effort KEP-225/BC/2025
+    addHeader('13. BUSINESS VALUE VS EFFORT (DETAIL)');
+    addKeyValue('Efisiensi', `${project?.bvEffort?.efisiensi?.label} (${project?.bvEffort?.efisiensi?.score})`);
+    addKeyValue('Pengguna Layanan', `${project?.bvEffort?.penggunaLayanan?.label} (${project?.bvEffort?.penggunaLayanan?.score})`);
+    addKeyValue('Dasar Kebutuhan', `${project?.bvEffort?.dasarKebutuhan?.label} (${project?.bvEffort?.dasarKebutuhan?.score})`);
+    addKeyValue('Scoring BIA', `${project?.bvEffort?.scoringBIA?.label} (${project?.bvEffort?.scoringBIA?.score})`);
+    addKeyValue('Target Penyelesaian', `${project?.bvEffort?.targetPenyelesaian?.label} (${project?.bvEffort?.targetPenyelesaian?.score})`);
+    addKeyValue('Kesiapan Regulasi', `${project?.bvEffort?.kesiapanRegulasi?.label} (${project?.bvEffort?.kesiapanRegulasi?.score})`);
+    addKeyValue('Sistem Terkait', `${project?.bvEffort?.sistemTerkait?.label} (${project?.bvEffort?.sistemTerkait?.score})`);
+    addKeyValue('Kerahasiaan Informasi', `${project?.bvEffort?.kerahasiaanInformasi?.label} (${project?.bvEffort?.kerahasiaanInformasi?.score})`);
     addKeyValue('Total Business Value (BV)', calc?.totalBV);
     addKeyValue('Total Effort Score', calc?.totalEffort);
     addKeyValue('Rekomendasi Prioritas', calc?.priority);
@@ -159,7 +170,7 @@ const buildBRD = (workbook, project, calc) => {
     const sheet = workbook.addWorksheet('02 - BRD');
     sheet.columns = [
         { width: 30 }, { width: 35 }, { width: 30 }, { width: 25 }, 
-        { width: 30 }, { width: 30 }, { width: 30 }, { width: 30 }
+        { width: 30 }, { width: 30 }, { width: 30 }, { width: 30 }, { width: 25 }
     ];
     const { addHeader, addKeyValue, addTable } = makeHelpers(sheet);
 
@@ -186,9 +197,10 @@ const buildBRD = (workbook, project, calc) => {
     const kfData = (project?.kebutuhanFungsional || []).map((kf, i) => [i + 1, kf.kebutuhan, kf.detailFungsi]);
     addTable(['No', 'Fungsi', 'Deskripsi'], kfData);
 
+    // UPDATE: Hapus kolom Alasan
     addHeader('05. KEBUTUHAN NON-FUNGSIONAL');
-    const knfData = (project?.kebutuhanNonFungsional || []).map((knf, i) => [i + 1, knf.deskripsi, knf.alasan]);
-    addTable(['No', 'Deskripsi Kebutuhan', 'Alasan'], knfData);
+    const knfData = (project?.kebutuhanNonFungsional || []).map((knf, i) => [i + 1, knf.fungsi, knf.deskripsi]);
+    addTable(['No', 'Fungsi Kebutuhan', 'Deskripsi'], knfData);
 
     addHeader('06. SPESIFIKASI AKTOR');
     const actorData = (project?.actors || []).map((a, i) => [
@@ -196,15 +208,16 @@ const buildBRD = (workbook, project, calc) => {
     ]);
     addTable(['Kode Aktor', 'Nama Aktor', 'Deskripsi', 'Jenis Aktor', 'UAW Score'], actorData);
 
+    // UPDATE: Tambahkan Catatan / Acceptance Criteria
     addHeader('07. USE CASE DIAGRAM DAN DESKRIPSI');
-    addKeyValue('Source Code Use Case (Mermaid JS)', project?.mermaid?.useCaseDiagram); // <--- Ditambahkan di sini
+    addKeyValue('Source Code Use Case (Mermaid JS)', project?.mermaid?.useCaseDiagram); 
     sheet.addRow([]);
     const ucData = (project?.useCases || []).map((uc, i) => [
         `MOD-UC-${i + 1}`, uc.name || uc.deskripsi, uc.prioritas, uc.actorRef, 
-        uc.preCond, uc.postCond, uc.mainFlow, uc.altFlow, uc.transactions,
+        uc.preCond, uc.postCond, uc.mainFlow, uc.altFlow, uc.catatan || '-', uc.transactions,
         getUseCaseComplexity(uc.transactions)?.weight || 0
     ]);
-    addTable(['Kode UC', 'Nama UC', 'Prioritas', 'Aktor', 'Kondisi Awal', 'Kondisi Akhir', 'Alur Utama', 'Alur Alternatif', 'Jml UI', 'UUCW'], ucData);
+    addTable(['Kode UC', 'Nama UC', 'Prioritas', 'Aktor', 'Kondisi Awal', 'Kondisi Akhir', 'Alur Utama', 'Alur Alternatif', 'Catatan / Acceptance Criteria', 'Jml UI', 'UUCW'], ucData);
 
     addHeader('08. USE CASE POINT');
     addKeyValue('UUCP (UAW + UUCW)', calc?.uucp);
@@ -333,7 +346,7 @@ const buildFSD = (workbook, project) => {
     addKeyValue('Link Mock Up (Figma)', project?.tautanMockup);
     sheet.addRow([]);
 
-    addHeader('02. DIAGRAM ALUR PROSES BISNIS'); // <--- Ditambahkan di sini
+    addHeader('02. DIAGRAM ALUR PROSES BISNIS'); 
     addKeyValue('Source Code BPMN (Mermaid JS)', project?.mermaid?.processFlow);
     sheet.addRow([]);
 
@@ -347,7 +360,6 @@ const buildFSD = (workbook, project) => {
     const designData = (project?.fsdDesign || []).map(d => [d.status, d.item, d.pic, d.link]);
     addTable(['Status', 'Artefak Rancangan', 'Nama PIC Reviu', 'Link / Referensi'], designData);
     
-    // <--- Ditambahkan ERD dan UC Source Code di sini
     addKeyValue('Source Code Use Case (Mermaid JS)', project?.mermaid?.useCaseDiagram);
     addKeyValue('Source Code ERD (Mermaid JS)', project?.mermaid?.erd);
     sheet.addRow([]);

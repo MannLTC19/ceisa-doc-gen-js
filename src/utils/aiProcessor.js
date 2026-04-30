@@ -192,22 +192,23 @@ EXTRACTION RULES:
 - nama: full project/document title.
 - asIsToBe: exactly 5 items. Keys: "factor", "asIs", "toBe"
 - kebutuhanFungsional: exactly 8 items. Format: "Sistem harus mampu [aksi] [objek]". Keys: "kebutuhan", "detailFungsi", "prioritas" (Mandatory|High|Medium|Low)
-- kebutuhanNonFungsional: exactly 5 items. Keys: "kategori" (Security|Performance|Availability|Scalability|Compliance), "deskripsi", "alasan"
+- kebutuhanNonFungsional: exactly 5 items. Keys: "fungsi" (extract the functional category or label), "deskripsi". (DO NOT extract 'alasan' or 'kategori').
 - actors: exactly 7 items. Keys: "name", "type" (GUI|Protocol|API), "desc"
-- useCases: exactly 8 items. Keys: "deskripsi" (name as Verb+Noun), "transactions" (int 3, 5, or 8), "actorRef", "preCond", "postCond"
+- useCases: Keys: "deskripsi" (name as Verb+Noun), "transactions" (int 3, 5, or 8), "actorRef", "preCond", "postCond", "mainFlow", "altFlow", "catatan" (extract "Acceptance Criteria" into the "catatan" field!).
 
 OUTPUT RULES: Return ONLY pure JSON. Array NEVER null, use [].
 `;
 
 const ENRICH_SYSTEM_PROMPT = `
 You are a Senior IT System Analyst. Extract the REMAINING fields only based on the document text.
-FOCUS: latarBelakang, tujuan, gambaranKondisiSaatIni, masalahIsu, pengampu, unitPenanggungJawab, namaPIC, kontakPIC, targetPenyelesaian, targetOutcome, outcomeKeluaran, businessValue, alurBisnisProses, tautanMockup, integrasiSSO, kasusBisnis, sasaran, faktorPenentu, bia, risikoBisnis, brdProcessAnalysis, mermaid.
+FOCUS: latarBelakang, tujuan, gambaranKondisiSaatIni, masalahIsu, pengampu, unitPenanggungJawab, namaPIC, kontakPIC, targetPenyelesaian, targetOutcome, outcomeKeluaran, businessValue, alurBisnisProses, tautanMockup, integrasiSSO, kasusBisnis, sasaran, faktorPenentu, bia, risikoBisnis, brdProcessAnalysis, mermaid, bvEffort.
 
 EXTRACTION RULES:
 - Text fields: Max 3 sentences. (latarBelakang, tujuan, gambaranKondisiSaatIni, masalahIsu, businessValue, dll).
 - tujuan: Project goals/objectives.
 - tautanMockup: scan for Mockup or Figma links.
 - integrasiSSO: scan for SSO integration details (e.g., CEISA 4.0 SSO).
+- bvEffort: Extract exact scores for BV (efisiensi, penggunaLayanan, dasarKebutuhan, scoringBIA) and Effort (targetPenyelesaian, kesiapanRegulasi, sistemTerkait, kerahasiaanInformasi).
 - bia: Business Impact Analysis. Keys: operasional, finansial, reputasi, hukum (Critical|High|Medium|Low), rto, rpo.
 - risikoBisnis: 5 items. Keys: "risk", "impact", "mitigasi", "level" (Tinggi|Sedang|Rendah).
 - brdProcessAnalysis: Keys: modul, subModul, eaMapping, notes.

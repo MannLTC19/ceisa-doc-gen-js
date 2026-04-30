@@ -40,16 +40,16 @@ const TABS = [
 // ─── Initial project state factory ───────────────────────────────────────────
 const makeInitialProject = () => ({
   nama:                   'Pengembangan Modul Baru CEISA 4.0',
-  uraianUsulan:           '', // <--- NEW
+  uraianUsulan:           '',
   pengampu:               'Direktorat Informasi Kepabeanan dan Cukai',
-  nomorND:                '', // <--- NEW
-  tanggalND:              '', // <--- NEW
-  tanggalPembuatan:       '', // <--- NEW
+  nomorND:                '',
+  tanggalND:              '',
+  tanggalPembuatan:       '',
   unitPenanggungJawab:    'Subdirektorat Pengembangan Sistem Informasi',
   namaPIC:                '',
   kontakPIC:              '',
   latarBelakang:          '',
-  tujuan:                 '', // <--- NEW
+  tujuan:                 '',
   gambaranKondisiSaatIni: '', 
   masalahIsu:             '',
   targetPenyelesaian:     '', 
@@ -57,8 +57,8 @@ const makeInitialProject = () => ({
   outcomeKeluaran:        '',
   businessValue:          '',
   alurBisnisProses:       '',
-  tautanMockup:           '', // <--- NEW
-  integrasiSSO:           '', // <--- NEW
+  tautanMockup:           '',
+  integrasiSSO:           '',
   phm: 20,
 
   actors:    [],
@@ -66,15 +66,16 @@ const makeInitialProject = () => ({
   tcfImpacts: TCF_FACTORS.reduce((acc, f) => ({ ...acc, [f.id]: 3 }), {}),
   efImpacts:  EF_FACTORS.reduce((acc, f)  => ({ ...acc, [f.id]: 3 }), {}),
 
+  // UPDATE: Menggunakan parameter BV vs Effort dari KEP-225/BC/2025
   bvEffort: {
-    efficiency:  { label: 'Penggunaan Aplikasi Existing', score: 1 },
-    users:       { label: 'Pegawai Bea Cukai',            score: 3 },
-    regulatory:  { label: 'UU/ Instruksi Presiden',       score: 5 },
-    bia:         { label: 'IKU Satker',                   score: 1 },
-    duration:    { label: '< 3 bulan',                    score: 1 },
-    technology:  { label: 'Teknologi Baru',               score: 2 },
-    systems:     { label: '1 Sistem Terkait',             score: 2 },
-    strategy:    { label: 'Insource',                     score: 2 },
+    efisiensi:            { label: 'Optimalisasi Aplikasi Existing', score: 2 },
+    penggunaLayanan:      { label: 'Pengguna Jasa', score: 4 },
+    dasarKebutuhan:       { label: 'Rekomendasi APF', score: 3 },
+    scoringBIA:           { label: 'Kritis > 70% s.d. 90%', score: 3 },
+    targetPenyelesaian:   { label: '< 3 bulan', score: 5 },
+    kesiapanRegulasi:     { label: 'Regulasi dan SOP sudah ada', score: 1 },
+    sistemTerkait:        { label: '2-5 sistem', score: 3 },
+    kerahasiaanInformasi: { label: 'Terbatas', score: 2 },
   },
 
   kakStructure: PHASE_DISTRIBUTION.map((p, i) => ({
@@ -88,7 +89,7 @@ const makeInitialProject = () => ({
   kebutuhanFungsional:    [], 
   kebutuhanNonFungsional: [], 
   risikoBisnis:           [],
-  rtm:                    [], // NEW RTM Array Initialization
+  rtm:                    [],
 
   bia: {
     operasional: 'Medium', finansial: 'Low',
@@ -160,24 +161,24 @@ const makeInitialProject = () => ({
     { id: 'd4', status: 'Belum', item: 'Rancangan Basis Data (ERD & Kamus Data)', pic: '', link: '' },
     { id: 'd5', status: 'Belum', item: 'Rancangan Service / API Collection', pic: '', link: '' },
   ],
-fsdSourceCode: { status: 'Belum', pic: '', link: '' }, // <--- Diperbarui  
-  fsdArchitecture: { // <--- ADD THIS
+  fsdSourceCode: { status: 'Belum', pic: '', link: '' }, 
+  fsdArchitecture: {
     database: { pic: '', status: 'Pending' },
     infra:    { pic: '', status: 'Pending' },
     security: { pic: '', status: 'Pending' }
   },
 
-charter: {
+  charter: {
     scope:              '',
     outOfScope:         '',
     stakeholders:       '',
     endUsers:           '',
-    manfaat:            '', // NEW
+    manfaat:            '', 
     kasusBisnis:        '',
     sasaran:            '',
     faktorPenentu:      '',
-    areaLayanan:        '', // NEW
-    catatanProbis:      '', // NEW
+    areaLayanan:        '', 
+    catatanProbis:      '', 
     prosesTerdampak:    '',
     tanggalMulai:       '',
     tanggalSelesai:     '',
@@ -232,7 +233,8 @@ const formatAIArray = (arr, prefix) => {
         risk: item,
         prioritas: 'Medium',
         detailFungsi: '',
-        alasan: ''
+        fungsi: item, // Menyokong format NFR baru
+        catatan: ''   // Menyokong Acceptance Criteria
       };
     }
     
@@ -240,12 +242,13 @@ const formatAIArray = (arr, prefix) => {
     return { 
       ...item, 
       id: item.id || fallbackId,
-      // Aggressively map to 'kebutuhan' so it shows up in TabKajian table
       kebutuhan: item.kebutuhan || item.deskripsi || item.description || item.requirement || '',
       deskripsi: item.deskripsi || item.kebutuhan || item.description || item.requirement || '',
       prioritas: item.prioritas || 'Medium',
       detailFungsi: item.detailFungsi || item.subfungsi || '',
-      alasan: item.alasan || item.reason || ''
+      // UPDATE: Mapping fungsi dan catatan untuk KEP-225
+      fungsi: item.fungsi || item.kategori || '',
+      catatan: item.catatan || item.acceptanceCriteria || ''
     };
   });
 };
@@ -287,16 +290,24 @@ export default function App() {
     const ppn              = subTotal * 0.11;
     const grandTotal       = subTotal + ppn;
 
-    const bvValues    = Object.values(project.bvEffort || {});
-    const totalBV     = bvValues.slice(0, 4).reduce((s, v) => s + (v.score || 0), 0);
-    const totalEffort = bvValues.slice(4).reduce((s, v) => s + (v.score || 0), 0);
+    // UPDATE: Kalkulasi eksplisit menggunakan parameter KEP-225/BC/2025
+    const totalBV = (project.bvEffort.efisiensi?.score || 0) + 
+                    (project.bvEffort.penggunaLayanan?.score || 0) + 
+                    (project.bvEffort.dasarKebutuhan?.score || 0) + 
+                    (project.bvEffort.scoringBIA?.score || 0);
+
+    const totalEffort = (project.bvEffort.targetPenyelesaian?.score || 0) + 
+                        (project.bvEffort.kesiapanRegulasi?.score || 0) + 
+                        (project.bvEffort.sistemTerkait?.score || 0) + 
+                        (project.bvEffort.kerahasiaanInformasi?.score || 0);
+
     const ratio       = totalBV / (totalEffort || 1);
     const priority    = ratio > 2 ? 'P1 (Critical)' : ratio > 1 ? 'P2 (High)' : 'P3 (Low)';
 
     return {
       uaw, uucw, uucp, tcf, ef, ucp,
       totalPersonHours, workingDays,
-      totalMandays: workingDays,   // alias — used by TabCharter & excelGenerator
+      totalMandays: workingDays,
       totalManMonths,
       kakTableData, runningTotalCost, warrantyCost, subTotal, ppn, grandTotal,
       totalBV, totalEffort, priority,
@@ -304,7 +315,6 @@ export default function App() {
   }, [project]);
 
   // ─── Mermaid cleaner ────────────────────────────────────────────────────
-  // Dedicated normalizer for asIsToBe — preserves factor/asIs/toBe and guarantees unique IDs
   const normalizeAsIsToBe = (arr) => {
     if (!Array.isArray(arr) || arr.length === 0) return null;
     return arr
@@ -331,7 +341,6 @@ export default function App() {
   // ─── File upload & AI analysis ──────────────────────────────────────────
   const handleFileUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
-    // Reset input so same file can be re-uploaded
     e.target.value = '';
     if (!file) return;
 
@@ -346,7 +355,6 @@ export default function App() {
     setUploadStatus(STATUS.EXTRACTING);
 
     try {
-      // Step 1 — extract pages (page-aware)
       const extracted = await extractDocumentPages(file);
 
       if (!extracted.fullText || extracted.fullText.trim().length < 50) {
@@ -355,12 +363,11 @@ export default function App() {
 
       console.log(`📄 Extracted ${extracted.parsedPages} pages (${extracted.totalPages} total) from "${file.name}"`);
 
-      // Step 2 — two-pass AI analysis
       setUploadStatus(STATUS.ANALYZING);
       const result = await processDocumentWithAI(
         API_KEY,
-        extracted,                          // pass full page object, not just string
-        (msg) => console.log('[AI]', msg),  // progress logger
+        extracted,                          
+        (msg) => console.log('[AI]', msg),  
       );
 
       if (!result.success) {
@@ -378,9 +385,7 @@ export default function App() {
         log:           result.log,
       });
 
-      // Step 3 — merge AI output into project state with safe array formatting
       setProject(prev => {
-        // Evaluate the requirements arrays first to handle both ID/EN keys
         const kfSource = (Array.isArray(ai.kebutuhanFungsional) && ai.kebutuhanFungsional.length > 0) ? ai.kebutuhanFungsional : 
                          (Array.isArray(ai.functionalRequirements) && ai.functionalRequirements.length > 0) ? ai.functionalRequirements : null;
                          
@@ -395,7 +400,7 @@ export default function App() {
           namaPIC:                ai.namaPIC                || prev.namaPIC,
           kontakPIC:              ai.kontakPIC              || prev.kontakPIC,
           latarBelakang:          ai.latarBelakang          || prev.latarBelakang,
-          tujuan:                 ai.tujuan                 || prev.tujuan,                 // <--- NEW
+          tujuan:                 ai.tujuan                 || prev.tujuan,                 
           gambaranKondisiSaatIni: ai.gambaranKondisiSaatIni || prev.gambaranKondisiSaatIni,
           masalahIsu:             ai.masalahIsu             || prev.masalahIsu,
           targetPenyelesaian:     ai.targetPenyelesaian     || prev.targetPenyelesaian,
@@ -403,11 +408,10 @@ export default function App() {
           outcomeKeluaran:        ai.outcomeKeluaran        || prev.outcomeKeluaran,
           businessValue:          ai.businessValue          || prev.businessValue,
           alurBisnisProses:       ai.alurBisnisProses       || prev.alurBisnisProses,
-          tautanMockup:           ai.tautanMockup           || prev.tautanMockup,           // <--- NEW
-          integrasiSSO:           ai.integrasiSSO           || prev.integrasiSSO,           // <--- NEW
+          tautanMockup:           ai.tautanMockup           || prev.tautanMockup,           
+          integrasiSSO:           ai.integrasiSSO           || prev.integrasiSSO,           
           bia:                    ai.bia                    || prev.bia,
 
-          // Safely map arrays so they always have IDs and correct structure
           kebutuhanFungsional:    kfSource ? formatAIArray(kfSource, 'kf') : prev.kebutuhanFungsional,
           kebutuhanNonFungsional: nfrSource ? formatAIArray(nfrSource, 'nfr') : prev.kebutuhanNonFungsional,
           risikoBisnis:           Array.isArray(ai.risikoBisnis) && ai.risikoBisnis.length > 0 ? formatAIArray(ai.risikoBisnis, 'rb') : prev.risikoBisnis,
@@ -440,9 +444,6 @@ export default function App() {
             sasaran:       ai.sasaran          || prev.charter.sasaran,
             faktorPenentu: ai.faktorPenentu    || prev.charter.faktorPenentu,
             risks:    Array.isArray(ai.risikoBisnis) && ai.risikoBisnis.length
-            
-
-            
               ? ai.risikoBisnis.map(r => r.risk).join('\n')
               : prev.charter.risks,
             team: ai.detectedPeople?.length
@@ -469,7 +470,6 @@ export default function App() {
     }
   }, []);
 
-  // ─── Array CRUD helpers ─────────────────────────────────────────────────
   const handleUpdateArray = useCallback((name, id, field, value) => {
     setProject(prev => ({
       ...prev,
@@ -485,7 +485,6 @@ export default function App() {
     setProject(prev => ({ ...prev, [name]: (prev[name] || []).filter(i => i.id !== id) }));
   }, []);
 
-  // ─── Upload status helpers ──────────────────────────────────────────────
   const statusLabel = {
     [STATUS.IDLE]:      uploadedFile ? uploadedFile.substring(0, 20) + (uploadedFile.length > 20 ? '…' : '') : 'Import TOR / KAK',
     [STATUS.EXTRACTING]: 'Membaca dokumen…',
@@ -496,7 +495,6 @@ export default function App() {
 
   const activeTabData = TABS.find(t => t.id === activeTab);
 
-  // ─── Render ─────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--kt-bg)' }}>
 

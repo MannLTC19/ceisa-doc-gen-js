@@ -47,6 +47,67 @@ export const getUseCaseComplexity = (transactions) => {
     return       { level: 'Complex', weight: 15 };
 };
 
+// ─── NEW: BUSINESS VALUE OPTIONS (KEP-225/BC/2025) ───────────────────────────
+// Berdasarkan tabel "Perhitungan Bussiness Value vs Effort" di DokLit terbaru[cite: 13]
+
+export const BV_OPTIONS = {
+    efisiensi: [
+        { label: 'BPR (Bisnis Proses Reengineering)', score: 4 },
+        { label: 'Kapabilitas Baru',                  score: 3 },
+        { label: 'Otomasi',                           score: 2 },
+        { label: 'Optimalisasi Aplikasi Existing',      score: 2 }, // Skor berubah menjadi 2[cite: 13]
+    ],
+    penggunaLayanan: [
+        { label: 'Pimpinan',              score: 2 },
+        { label: 'Pegawai Bea Cukai',     score: 3 },
+        { label: 'Pengguna Jasa',         score: 4 }, // Sesuai DokLit[cite: 13]
+        { label: 'Satuan Kerja Terbatas', score: 1 },
+    ],
+    dasarKebutuhan: [
+        { label: 'UU/ Instruksi Presiden',             score: 5 },
+        { label: 'Peraturan Baru dan Mendesak',        score: 5 },
+        { label: 'Berimplikasi Hukum (Temuan APH)',    score: 4 },
+        { label: 'Rekomendasi APF',                    score: 3 }, // Skor 3[cite: 13]
+        { label: 'Inisiatif Strategis (RBTK & TPRKC)', score: 3 },
+        { label: 'Quick Win',                          score: 2 },
+    ],
+    scoringBIA: [ // Nama parameter berubah dari 'bia' menjadi 'scoringBIA'[cite: 13]
+        { label: 'Kritis > 90%',           score: 4 },
+        { label: 'Kritis > 70% s.d. 90%',  score: 3 }, // Skor 3[cite: 13]
+        { label: 'Kritis 50% s.d. 70%',    score: 2 },
+        { label: 'Kritis < 50%',           score: 1 },
+    ],
+};
+
+// ─── NEW: EFFORT OPTIONS (KEP-225/BC/2025) ───────────────────────────────────
+// Parameter berubah total dari versi sebelumnya
+
+export const EFFORT_OPTIONS = {
+    targetPenyelesaian: [ // Inverted Scale: Makin cepat makin tinggi beban/skor[cite: 13]
+        { label: '< 3 bulan',  score: 5 }, 
+        { label: '3-6 bulan',  score: 4 },
+        { label: '6-9 bulan',  score: 3 },
+        { label: '9-12 bulan', score: 2 },
+        { label: '> 12 bulan', score: 1 },
+    ],
+    kesiapanRegulasi: [
+        { label: 'Belum ada Regulasi',          score: 5 },
+        { label: 'Regulasi dalam Proses Draft', score: 3 },
+        { label: 'Regulasi dan SOP sudah ada',  score: 1 }, // Skor 1[cite: 13]
+    ],
+    sistemTerkait: [
+        { label: 'Tidak ada',        score: 1 },
+        { label: '1 Sistem Terkait', score: 2 },
+        { label: '2-5 sistem',       score: 3 }, // Skor 3[cite: 13]
+        { label: '> 5 sistem',       score: 5 },
+    ],
+    kerahasiaanInformasi: [
+        { label: 'Sangat Rahasia', score: 5 },
+        { label: 'Rahasia',        score: 3 },
+        { label: 'Terbatas',       score: 2 }, // Skor 2[cite: 13]
+        { label: 'Publik',         score: 1 },
+    ],
+};
 
 // ─── TCF FACTORS (Technical Complexity) ──────────────────────────────────────
 export const TCF_FACTORS = [
@@ -213,67 +274,3 @@ export const PHASE_DISTRIBUTION = [
     },
     // Total: 100%
 ];
-
-
-// ─── NEW: BUSINESS VALUE OPTIONS (PPS) ────────────────────────────────────────
-// Used in Tab Penelitian section 3 — Business Value vs Effort matrix
-
-export const BV_OPTIONS = {
-    efficiency: [
-        { label: 'BPR (Bisnis Proses Reengineering)', score: 4 },
-        { label: 'Kapabilitas Baru',                  score: 3 },
-        { label: 'Otomasi',                           score: 2 },
-        { label: 'Penggunaan Aplikasi Existing',      score: 1 },
-    ],
-    users: [
-        { label: 'Pengguna Jasa',         score: 4 },
-        { label: 'Pegawai Bea Cukai',     score: 3 },
-        { label: 'Pimpinan',              score: 2 },
-        { label: 'Satuan Kerja Terbatas', score: 1 },
-    ],
-    regulatory: [
-        { label: 'UU/ Instruksi Presiden',             score: 5 },
-        { label: 'Peraturan Baru dan Mendesak',        score: 5 },
-        { label: 'Berimplikasi Hukum (Temuan APH)',    score: 4 },
-        { label: 'Rekomendasi APF',                    score: 4 },
-        { label: 'Inisiatif Strategis (RBTK & TPRKC)', score: 3 },
-        { label: 'Quick Win',                          score: 2 },
-        { label: 'Permintaan AdHoc (Dirjen)',          score: 2 },
-        { label: 'Reengineering',                      score: 1 },
-        { label: 'Optimasi',                           score: 1 },
-    ],
-    bia: [
-        { label: 'IKU DJBC',   score: 2 },
-        { label: 'IKU Satker', score: 1 },
-    ],
-};
-
-
-// ─── NEW: EFFORT OPTIONS (IKC) ────────────────────────────────────────────────
-// Used in Tab Penelitian section 3 — Business Value vs Effort matrix
-// Note: Duration score is inverted so longer timeline = higher effort score/risk
-
-export const EFFORT_OPTIONS = {
-    duration: [
-        { label: '< 3 bulan',  score: 1 },
-        { label: '3-6 bulan',  score: 2 },
-        { label: '6-9 bulan',  score: 3 },
-        { label: '9-12 bulan', score: 4 },
-        { label: '> 12 bulan', score: 5 },
-    ],
-    technology: [
-        { label: 'Teknologi Existing', score: 1 },
-        { label: 'Teknologi Baru',     score: 2 },
-    ],
-    systems: [
-        { label: 'Tidak ada',        score: 1 },
-        { label: '1 Sistem Terkait', score: 2 },
-        { label: '2-5 sistem',       score: 3 },
-        { label: '> 5 sistem',       score: 4 },
-    ],
-    strategy: [
-        { label: 'Insource',   score: 2 },
-        { label: 'Outsource',  score: 1 },
-        { label: 'Squad Team', score: 1 },
-    ],
-};
